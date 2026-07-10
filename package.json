@@ -14,7 +14,7 @@
     "spike:s4": "tsx e2e/spikes/s4-requests-discovery.ts",
     "spike:s5": "tsx e2e/spikes/s5-swap.ts",
     "setup:mint": "tsx e2e/setup/create-test-mint.ts",
-    "fund": "tsx e2e/setup/fund.ts",
+    "test:program": "tsx e2e/program-tests.ts",
     "e2e:1": "tsx e2e/scenarios/e2e-1-transfer.ts",
     "e2e:2": "tsx e2e/scenarios/e2e-2-vault.ts",
     "e2e:3": "tsx e2e/scenarios/e2e-3-swap.ts",

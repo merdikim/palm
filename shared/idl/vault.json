@@ -657,11 +657,22 @@
       "accounts": [
         {
           "name": "agent",
-          "writable": true,
+          "docs": [
+            "The agent authorizes the request (must match the vault's agent). It is",
+            "not the rent payer — agents are not expected to hold SOL."
+          ],
           "signer": true,
           "relations": [
             "vault"
           ]
+        },
+        {
+          "name": "funder",
+          "docs": [
+            "Pays rent for the created request/counter accounts (owner or a relayer)."
+          ],
+          "writable": true,
+          "signer": true
         },
         {
           "name": "vault",

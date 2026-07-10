@@ -501,8 +501,12 @@ pub struct CreateRequest<'info> {
 
 #[derive(Accounts)]
 pub struct RequestAgentApproval<'info> {
-    #[account(mut)]
+    /// The agent authorizes the request (must match the vault's agent). It is
+    /// not the rent payer — agents are not expected to hold SOL.
     pub agent: Signer<'info>,
+    /// Pays rent for the created request/counter accounts (owner or a relayer).
+    #[account(mut)]
+    pub funder: Signer<'info>,
     #[account(
         seeds = [VAULT_SEED, vault.owner.as_ref(), agent.key().as_ref()],
         bump = vault.bump,
@@ -511,7 +515,7 @@ pub struct RequestAgentApproval<'info> {
     pub vault: Account<'info, AgentVault>,
     #[account(
         init_if_needed,
-        payer = agent,
+        payer = funder,
         space = RequestCounter::MAX_SIZE,
         seeds = [COUNTER_SEED, vault.owner.as_ref()],
         bump,
@@ -519,7 +523,7 @@ pub struct RequestAgentApproval<'info> {
     pub counter: Account<'info, RequestCounter>,
     #[account(
         init,
-        payer = agent,
+        payer = funder,
         space = PaymentRequest::MAX_SIZE,
         seeds = [REQUEST_SEED, vault.owner.as_ref(), counter.next_id.to_le_bytes().as_ref()],
         bump,
