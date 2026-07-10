@@ -1,0 +1,28 @@
+# Secrets & keys — NEVER commit
+keys/*.json
+!keys/.gitkeep
+*.pem
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+.expo/
+.expo-shared/
+web-build/
+
+# Rust / Anchor
+programs/**/target/
+target/
+test-ledger/
+.anchor/
+**/*.rs.bk
+
+# Misc
+.DS_Store
+scratch/

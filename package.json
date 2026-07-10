@@ -1,0 +1,38 @@
+{
+  "name": "palm-private-payments",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private payments on Solana via MagicBlock PER — devnet prototype",
+  "type": "module",
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "spike:s1": "tsx e2e/spikes/s1-baseline-per.ts",
+    "spike:s2": "tsx e2e/spikes/s2-payments-loop.ts",
+    "spike:s3": "tsx e2e/spikes/s3-agent-vault.ts",
+    "spike:s4": "tsx e2e/spikes/s4-requests-discovery.ts",
+    "spike:s5": "tsx e2e/spikes/s5-swap.ts",
+    "setup:mint": "tsx e2e/setup/create-test-mint.ts",
+    "fund": "tsx e2e/setup/fund.ts",
+    "e2e:1": "tsx e2e/scenarios/e2e-1-transfer.ts",
+    "e2e:2": "tsx e2e/scenarios/e2e-2-vault.ts",
+    "e2e:3": "tsx e2e/scenarios/e2e-3-swap.ts",
+    "e2e:4": "tsx e2e/scenarios/e2e-4-request.ts",
+    "e2e:5": "tsx e2e/scenarios/e2e-5-approval.ts",
+    "e2e:6": "tsx e2e/scenarios/e2e-6-escape-hatch.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "@solana/spl-token": "^0.4.9",
+    "@coral-xyz/anchor": "0.32.1",
+    "@magicblock-labs/ephemeral-rollups-sdk": "0.14.3",
+    "bs58": "^6.0.0",
+    "tweetnacl": "^1.0.3"
+  }
+}
