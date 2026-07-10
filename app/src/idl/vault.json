@@ -1,0 +1,1394 @@
+{
+  "address": "3955LkKVs64NZTo9dGKXAoRx7wAURcKstuXZxDqoqYtW",
+  "metadata": {
+    "name": "vault",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Per-agent escrow vaults for private payments (MagicBlock PER)"
+  },
+  "instructions": [
+    {
+      "name": "agent_pay",
+      "docs": [
+        "Agent directs a payment out of the vault. Signer MUST be the agent.",
+        "Executes atomically iff every policy branch passes and the debit is at or",
+        "under the approval threshold; otherwise it transfers nothing and errors",
+        "(over-threshold payments go through `request_agent_approval`).",
+        "",
+        "`mint_out` is the token the merchant ultimately wants; on devnet (no DEX,",
+        "see docs/spikes.md S5) the on-chain move is always the USDC debit to the",
+        "merchant's USDC account — the swap leg is modelled by the client's",
+        "SwapProvider and reflected in `quote`. All caps are on the USDC debit."
+      ],
+      "discriminator": [
+        191,
+        210,
+        112,
+        56,
+        82,
+        215,
+        140,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "agent",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "AgentVault"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "docs": [
+            "Merchant's USDC token account (destination of the debit)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "mint_out",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount_out",
+          "type": "u64"
+        },
+        {
+          "name": "quote",
+          "type": {
+            "defined": {
+              "name": "QuoteContext"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_request",
+      "docs": [
+        "User-to-user request-to-pay. Signer is the requester (who wants to be",
+        "paid). Creates a PaymentRequest with members {requester, payer}."
+      ],
+      "discriminator": [
+        219,
+        191,
+        93,
+        237,
+        18,
+        44,
+        42,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "counter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  95,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "payer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "payer"
+              },
+              {
+                "kind": "account",
+                "path": "counter.next_id",
+                "account": "RequestCounter"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "payer",
+          "type": "pubkey"
+        },
+        {
+          "name": "mint_out",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount_out",
+          "type": "u64"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        },
+        {
+          "name": "memo_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_vault",
+      "docs": [
+        "Owner creates a per-agent vault and its USDC token account. The vault's",
+        "USDC balance (funded separately via deposit) is the agent's allowance."
+      ],
+      "discriminator": [
+        29,
+        237,
+        247,
+        208,
+        193,
+        82,
+        54,
+        135
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "policy",
+          "type": {
+            "defined": {
+              "name": "VaultPolicy"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "reclaim",
+      "docs": [
+        "Owner reclaims funds from the vault at any time. `amount = None` reclaims",
+        "the entire balance; `close = true` also closes the vault account (rent to",
+        "owner). Only the owner can reach this."
+      ],
+      "discriminator": [
+        44,
+        177,
+        236,
+        249,
+        145,
+        109,
+        163,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "vault.agent",
+                "account": "AgentVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "close",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "request_agent_approval",
+      "docs": [
+        "Agent creates an over-threshold approval request for the owner. Signer is",
+        "the agent. Creates a PaymentRequest with payer = owner, vault set. No",
+        "funds move."
+      ],
+      "discriminator": [
+        131,
+        228,
+        36,
+        178,
+        192,
+        254,
+        133,
+        85
+      ],
+      "accounts": [
+        {
+          "name": "agent",
+          "docs": [
+            "The agent authorizes the request (must match the vault's agent). It is",
+            "not the rent payer — agents are not expected to hold SOL."
+          ],
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "funder",
+          "docs": [
+            "Pays rent for the created request/counter accounts (owner or a relayer)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "AgentVault"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "counter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  95,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "AgentVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "AgentVault"
+              },
+              {
+                "kind": "account",
+                "path": "counter.next_id",
+                "account": "RequestCounter"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "mint_out",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount_out",
+          "type": "u64"
+        },
+        {
+          "name": "_quote",
+          "type": {
+            "defined": {
+              "name": "QuoteContext"
+            }
+          }
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        },
+        {
+          "name": "memo_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "respond_request",
+      "docs": [
+        "Payer responds to a request. Only the payer may respond, exactly once.",
+        "On accept:",
+        "- user-to-user (vault = None): transfer from the payer's own token",
+        "account to the requester (payer signs as authority);",
+        "- agent-approval (vault = Some): re-run vault policy and debit the",
+        "vault to the requester's USDC account (vault PDA authority).",
+        "On deny or past expiry: mark status, move nothing."
+      ],
+      "discriminator": [
+        37,
+        78,
+        107,
+        16,
+        167,
+        160,
+        154,
+        207
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              },
+              {
+                "kind": "account",
+                "path": "request.request_id",
+                "account": "PaymentRequest"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "payer_source",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "vault_usdc",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "dest_usdc",
+          "docs": [
+            "Destination token account (requester's / merchant's)."
+          ],
+          "writable": true,
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "accept",
+          "type": "bool"
+        },
+        {
+          "name": "quote",
+          "type": {
+            "defined": {
+              "name": "QuoteContext"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_policy",
+      "docs": [
+        "Owner updates policy at any time. Non-owner cannot reach this (seeds +",
+        "has_one = owner enforce it)."
+      ],
+      "discriminator": [
+        212,
+        245,
+        246,
+        7,
+        163,
+        151,
+        18,
+        57
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "vault.agent",
+                "account": "AgentVault"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "policy",
+          "type": {
+            "defined": {
+              "name": "VaultPolicy"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "AgentVault",
+      "discriminator": [
+        232,
+        220,
+        237,
+        164,
+        157,
+        9,
+        215,
+        194
+      ]
+    },
+    {
+      "name": "PaymentRequest",
+      "discriminator": [
+        27,
+        20,
+        202,
+        96,
+        101,
+        242,
+        124,
+        69
+      ]
+    },
+    {
+      "name": "RequestCounter",
+      "discriminator": [
+        220,
+        43,
+        83,
+        73,
+        39,
+        210,
+        63,
+        108
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotOwner",
+      "msg": "Only the vault owner may perform this action"
+    },
+    {
+      "code": 6001,
+      "name": "NotAgent",
+      "msg": "Signer is not the vault's agent"
+    },
+    {
+      "code": 6002,
+      "name": "NotPayer",
+      "msg": "Only the request payer may respond"
+    },
+    {
+      "code": 6003,
+      "name": "VaultExpired",
+      "msg": "Vault has expired"
+    },
+    {
+      "code": 6004,
+      "name": "MerchantNotAllowed",
+      "msg": "Merchant is not on the vault allowlist"
+    },
+    {
+      "code": 6005,
+      "name": "AgentSelfPay",
+      "msg": "Agent cannot pay itself"
+    },
+    {
+      "code": 6006,
+      "name": "ExceedsPerTx",
+      "msg": "Amount exceeds max per-transaction limit"
+    },
+    {
+      "code": 6007,
+      "name": "ExceedsDailyLimit",
+      "msg": "Amount exceeds the daily limit"
+    },
+    {
+      "code": 6008,
+      "name": "SlippageExceeded",
+      "msg": "Quote slippage exceeds the vault's max slippage"
+    },
+    {
+      "code": 6009,
+      "name": "InsufficientFunds",
+      "msg": "Insufficient vault balance"
+    },
+    {
+      "code": 6010,
+      "name": "AllowlistTooLong",
+      "msg": "Merchant allowlist exceeds the maximum length"
+    },
+    {
+      "code": 6011,
+      "name": "RequestNotPending",
+      "msg": "Request is not pending"
+    },
+    {
+      "code": 6012,
+      "name": "RequestExpired",
+      "msg": "Request has expired"
+    },
+    {
+      "code": 6013,
+      "name": "BadExpiry",
+      "msg": "Request expiry must be in the future"
+    },
+    {
+      "code": 6014,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6015,
+      "name": "BadQuote",
+      "msg": "Quote debit does not cover the requested output"
+    },
+    {
+      "code": 6016,
+      "name": "Overflow",
+      "msg": "Numeric overflow"
+    },
+    {
+      "code": 6017,
+      "name": "ApprovalRequired",
+      "msg": "Payment requires owner approval (over threshold)"
+    },
+    {
+      "code": 6018,
+      "name": "BadTokenAccounts",
+      "msg": "Mismatched token owner/mint for the provided accounts"
+    }
+  ],
+  "types": [
+    {
+      "name": "AgentVault",
+      "docs": [
+        "Per-agent escrow vault. Its private token balance IS the allowance.",
+        "seeds = [\"vault\", owner, agent]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "expiry",
+            "docs": [
+              "Optional hard expiry (unix seconds). After this, agent_pay fails."
+            ],
+            "type": {
+              "option": "i64"
+            }
+          },
+          {
+            "name": "max_per_tx",
+            "docs": [
+              "Tier 1 (always on): max USDC base units per single agent_pay."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_slippage_bps",
+            "docs": [
+              "Tier 1: max tolerated slippage for the swap leg, basis points."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "daily_limit",
+            "docs": [
+              "Tier 2: optional rolling 24h spend cap (USDC base units)."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "spent_today",
+            "type": "u64"
+          },
+          {
+            "name": "window_start",
+            "type": "i64"
+          },
+          {
+            "name": "merchant_allowlist",
+            "docs": [
+              "Tier 3: optional merchant allowlist. None = any merchant allowed",
+              "(subject to the agent-can't-pay-itself rule)."
+            ],
+            "type": {
+              "option": {
+                "vec": "pubkey"
+              }
+            }
+          },
+          {
+            "name": "approval_threshold",
+            "docs": [
+              "Tier 3: payments whose USDC debit exceeds this create a PaymentRequest",
+              "for the owner to approve instead of executing immediately."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "lifetime_spent",
+            "docs": [
+              "Lifetime USDC spent through this vault (for the agents page)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "payment_count",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PaymentRequest",
+      "docs": [
+        "A request-to-pay. Created directly on the ER with permission members",
+        "{requester, payer}. Used for user-to-user requests AND agent over-threshold",
+        "approvals (then `vault` is set and `requester` is the agent).",
+        "seeds = [\"request\", payer, &request_id.to_le_bytes()]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "requester",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault",
+            "docs": [
+              "Set when this is an agent-approval request; None for user-to-user."
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "mint_out",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount_out",
+            "type": "u64"
+          },
+          {
+            "name": "memo_hash",
+            "docs": [
+              "Client-encrypted memo reference (opaque to the program)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "RequestStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "request_id",
+            "docs": [
+              "Monotonic id from the payer's request counter (enables deterministic",
+              "derivation + enumeration fallback — see docs/spikes.md S4)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "QuoteContext",
+      "docs": [
+        "Quote context supplied by the agent for the swap leg. All policy caps are",
+        "enforced on `usdc_debit` (the USDC leaving the vault). For a direct USDC",
+        "payment, `usdc_debit == amount_out` and `quoted_slippage_bps == 0`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "usdc_debit",
+            "docs": [
+              "USDC base units that will leave the vault to fulfill this payment."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "quoted_slippage_bps",
+            "docs": [
+              "The quote's slippage vs. the reference price, in basis points."
+            ],
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RequestCounter",
+      "docs": [
+        "Per-payer monotonic counter for deterministic request PDAs.",
+        "seeds = [\"req_counter\", payer]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "next_id",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RequestStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Accepted"
+          },
+          {
+            "name": "Denied"
+          },
+          {
+            "name": "Expired"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultPolicy",
+      "docs": [
+        "Policy args for create_vault / update_policy (all optionals chosen at",
+        "creation; Tier 1 always present)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "max_per_tx",
+            "type": "u64"
+          },
+          {
+            "name": "max_slippage_bps",
+            "type": "u16"
+          },
+          {
+            "name": "daily_limit",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "merchant_allowlist",
+            "type": {
+              "option": {
+                "vec": "pubkey"
+              }
+            }
+          },
+          {
+            "name": "approval_threshold",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "expiry",
+            "type": {
+              "option": "i64"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
