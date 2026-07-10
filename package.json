@@ -8,10 +8,7 @@
     "backend"
   ],
   "scripts": {
-    "spike:s1": "tsx e2e/spikes/s1-baseline-per.ts",
     "spike:s2": "tsx e2e/spikes/s2-payments-loop.ts",
-    "spike:s3": "tsx e2e/spikes/s3-agent-vault.ts",
-    "spike:s4": "tsx e2e/spikes/s4-requests-discovery.ts",
     "spike:s5": "tsx e2e/spikes/s5-swap.ts",
     "setup:mint": "tsx e2e/setup/create-test-mint.ts",
     "test:program": "tsx e2e/program-tests.ts",
