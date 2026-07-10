@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Palm",
+    "slug": "palm-app",
+    "scheme": "palm",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b0d12",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0b0d12",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.palm.private"
+    },
+    "android": {
+      "package": "app.palm.private"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": ["expo-secure-store", "expo-notifications"],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

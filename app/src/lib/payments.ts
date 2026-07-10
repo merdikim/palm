@@ -9,6 +9,7 @@
  */
 import { Transaction, VersionedTransaction } from '@solana/web3.js';
 import { Buffer } from 'buffer';
+import bs58 from 'bs58';
 import {
   PAYMENTS_API,
   PAYMENTS_CLUSTER,
@@ -91,7 +92,6 @@ export async function apiLogin(signer: Signer): Promise<ApiSession> {
     query: { pubkey, cluster: PAYMENTS_CLUSTER },
   });
   const sig = await signer.signMessage(new TextEncoder().encode(challenge));
-  const bs58 = (await import('bs58')).default;
   const { token } = await api<{ token: string }>('/v1/spl/login', {
     method: 'POST',
     body: JSON.stringify({

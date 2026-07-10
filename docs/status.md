@@ -60,11 +60,19 @@ and agent-approval via optional accounts.
 - Client-initiated-ping model (documented limitation: unauthenticated in the
   prototype; a `SubscriptionSource` can call the same `dispatch` sink later).
 
-## Phase 3 — Mobile app  ⏳ (Expo, in progress)
+## Phase 3 — Mobile app  ✅ complete (build-verified; on-device pending)
 
-- React Native + Expo, 4 screens (Onboarding/Home/Agents/Requests), signing
-  behind a `Signer` interface, TEE-native client. See `app/README.md`.
-- Runtime-on-device not verifiable in this environment (no simulator).
+- React Native + Expo (SDK 52), 6 screens (Onboarding, Home, Agents list,
+  Create vault, Agent detail, Requests), signing behind a `Signer` interface
+  (`LocalKeypairSigner` via `expo-secure-store`; MWA-swappable). TEE-native
+  client ported from `shared/`. Deep-link `palm://` routes push taps to Requests.
+- **`npx tsc --noEmit` passes clean (0 errors); Metro bundles for web and iOS.**
+- Vault ixs built as raw `TransactionInstruction`s + hand-rolled Borsh (no anchor
+  at runtime) against the deployed IDL discriminators.
+- Runtime-on-device not verifiable in this environment (no simulator/device).
+- Real devnet flows: key create/import, TEE auth + JWT cache, private balance
+  read, deposit, withdraw, private transfer, create/update/revoke vault,
+  create/respond request. Swap leg stubbed by design (S5). See `app/README.md`.
 
 ## Phase 4 — Tests + e2e  ✅ complete (program + payments + privacy + scenarios)
 
