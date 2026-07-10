@@ -60,9 +60,8 @@ export const PERMISSION_PROGRAM_ID =
 export const ESPL_TOKEN_PROGRAM_ID =
   "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2";
 
-// The vault program (this project). Placeholder until first `anchor build`
-// generates a real keypair; kept in sync with programs/vault/Anchor.toml.
-export const VAULT_PROGRAM_ID = "Vau1t1111111111111111111111111111111111111";
+// The vault program (this project). Deployed to devnet 2026-07-10.
+export const VAULT_PROGRAM_ID = "3955LkKVs64NZTo9dGKXAoRx7wAURcKstuXZxDqoqYtW";
 
 // ---------------------------------------------------------------------------
 // Helpers

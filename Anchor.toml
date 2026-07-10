@@ -1,0 +1,22 @@
+[toolchain]
+package_manager = "npm"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+vault = "3955LkKVs64NZTo9dGKXAoRx7wAURcKstuXZxDqoqYtW"
+
+[programs.devnet]
+vault = "3955LkKVs64NZTo9dGKXAoRx7wAURcKstuXZxDqoqYtW"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "keys/payer.json"
+
+[scripts]
+test = "npx tsx e2e/run-program-tests.ts"

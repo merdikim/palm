@@ -1,0 +1,31 @@
+[package]
+name = "vault"
+version = "0.1.0"
+description = "Per-agent escrow vaults for private payments (MagicBlock PER)"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "vault"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+# Enables the PER delegation/access-control instructions. Kept behind a flag so
+# the policy core compiles and unit-tests without the SDK on the critical path.
+per = ["ephemeral-rollups-sdk"]
+
+[dependencies]
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl = "0.32.1"
+ephemeral-rollups-sdk = { version = "0.14.3", features = ["anchor-compat", "access-control"], optional = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
