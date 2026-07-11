@@ -34,7 +34,7 @@ export interface AppCluster {
 }
 
 export class AppConfig {
-  static name = 'Haven';
+  static name = 'Palm';
   static uri = 'https://usepalm.io';
   static clusters: AppCluster[] = [
     {

@@ -1,5 +1,5 @@
 /**
- * HavenShell — the signed-in app: header with lock toggle, Home / Agents /
+ * PalmShell — the signed-in app: header with lock toggle, Home / Agents /
  * Requests tabs, a bottom nav, and the action bottom-sheets (add, send,
  * withdraw, request, create vault, vault detail, top up, edit policy).
  *
@@ -45,7 +45,7 @@ import { RecipientNotOnboardedError } from '../lib/payments';
 import type { Policy } from '../lib/vault';
 import { formatUsd, fromUsdc, usdcBase, shortKey } from '../lib/format';
 import { addActivity, activityTime, type ActivityItem } from '../lib/activity';
-import { haven } from '../theme';
+import { palm } from '../theme';
 import { Icon, type IconName } from '../components/icons';
 import {
   T,
@@ -58,7 +58,7 @@ import {
   SheetStatus,
   Secret,
   Keypad,
-} from '../components/haven';
+} from '../components/palm';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const fmt0 = (n: number) => '$' + Math.round(Math.abs(n)).toLocaleString('en-US');
@@ -90,7 +90,7 @@ const SUGGESTIONS = [
   { name: 'Muse', kind: 'Creative tools' },
 ];
 
-export function HavenShell() {
+export function PalmShell() {
   const w = useWallet();
 
   // navigation / lock
@@ -379,7 +379,7 @@ export function HavenShell() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
           <Logo size={28} />
           <T weight="bold" size={17}>
-            Haven
+            Palm
           </T>
         </View>
         <Pressable
@@ -387,13 +387,13 @@ export function HavenShell() {
           style={[
             styles.lockChip,
             {
-              backgroundColor: locked ? haven.greenDeep : haven.greenTintBg,
-              borderColor: locked ? haven.greenDeep : haven.greenTintBorder,
+              backgroundColor: locked ? palm.greenDeep : palm.greenTintBg,
+              borderColor: locked ? palm.greenDeep : palm.greenTintBorder,
             },
           ]}
         >
-          <Icon name={locked ? 'lock' : 'unlock'} size={12} color={locked ? haven.onDark : haven.green} strokeWidth={2.2} />
-          <T weight="semibold" size={12.5} color={locked ? haven.onDark : haven.green}>
+          <Icon name={locked ? 'lock' : 'unlock'} size={12} color={locked ? palm.onDark : palm.green} strokeWidth={2.2} />
+          <T weight="semibold" size={12.5} color={locked ? palm.onDark : palm.green}>
             {unlocking ? 'Unlocking…' : locked ? 'Locked' : 'Unlocked'}
           </T>
         </Pressable>
@@ -403,7 +403,7 @@ export function HavenShell() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={reloadAll} tintColor={haven.inkFaint} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={reloadAll} tintColor={palm.inkFaint} />}
       >
         {tab === 'home' && <HomeTab />}
         {tab === 'agents' && <AgentsTab />}
@@ -418,7 +418,7 @@ export function HavenShell() {
           { key: 'requests', label: 'Requests', icon: 'requests' as IconName },
         ] as const).map((n) => {
           const active = tab === n.key;
-          const fg = active ? haven.green : haven.inkFaint;
+          const fg = active ? palm.green : palm.inkFaint;
           return (
             <Pressable key={n.key} onPress={() => setTab(n.key)} style={styles.navItem}>
               <Icon name={n.icon} size={21} color={fg} strokeWidth={2} />
@@ -427,7 +427,7 @@ export function HavenShell() {
               </T>
               {n.key === 'requests' && pendingActionable > 0 && (
                 <View style={styles.navBadge}>
-                  <T weight="bold" size={10} color={haven.onDark}>
+                  <T weight="bold" size={10} color={palm.onDark}>
                     {pendingActionable}
                   </T>
                 </View>
@@ -440,7 +440,7 @@ export function HavenShell() {
       {/* toast */}
       {toast && (
         <Animated.View style={[styles.toast, { transform: [{ translateY: toastY }] }]}>
-          <T weight="semibold" size={13} color={haven.onDark} style={{ textAlign: 'center' }}>
+          <T weight="semibold" size={13} color={palm.onDark} style={{ textAlign: 'center' }}>
             {toast}
           </T>
         </Animated.View>
@@ -464,10 +464,10 @@ export function HavenShell() {
         {/* balance card */}
         <Pressable onPress={unlock} style={styles.balanceCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <T weight="semibold" size={12.5} color={haven.onDarkDim} style={{ letterSpacing: 0.6 }}>
+            <T weight="semibold" size={12.5} color={palm.onDarkDim} style={{ letterSpacing: 0.6 }}>
               PRIVATE BALANCE
             </T>
-            <Icon name={locked ? 'lock' : 'unlock'} size={15} color={haven.onDarkDim} strokeWidth={2} />
+            <Icon name={locked ? 'lock' : 'unlock'} size={15} color={palm.onDarkDim} strokeWidth={2} />
           </View>
           <View style={{ marginTop: 12 }}>
             {locked ? (
@@ -475,11 +475,11 @@ export function HavenShell() {
                 <View />
               </Secret>
             ) : (
-              <T weight="bold" size={38} color={haven.onDark} style={{ letterSpacing: -0.8 }}>
+              <T weight="bold" size={38} color={palm.onDark} style={{ letterSpacing: -0.8 }}>
                 {balance == null ? '—' : formatUsd(balance)}
               </T>
             )}
-            <T size={13} color={haven.onDarkDim} style={{ marginTop: 6 }}>
+            <T size={13} color={palm.onDarkDim} style={{ marginTop: 6 }}>
               ≈ {balanceDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pUSD · shielded
             </T>
           </View>
@@ -487,15 +487,15 @@ export function HavenShell() {
             <View style={styles.unlockPill}>
               {unlocking ? (
                 <>
-                  <ActivityIndicator color={haven.onDark} size="small" />
-                  <T weight="semibold" size={13} color={haven.onDark}>
+                  <ActivityIndicator color={palm.onDark} size="small" />
+                  <T weight="semibold" size={13} color={palm.onDark}>
                     Verifying your signature…
                   </T>
                 </>
               ) : (
                 <>
-                  <Icon name="unlock" size={13} color={haven.onDark} strokeWidth={2.2} />
-                  <T weight="semibold" size={13} color={haven.onDark}>
+                  <Icon name="unlock" size={13} color={palm.onDark} strokeWidth={2.2} />
+                  <T weight="semibold" size={13} color={palm.onDark}>
                     Tap to unlock
                   </T>
                 </>
@@ -509,9 +509,9 @@ export function HavenShell() {
           {actions.map((a) => (
             <Pressable key={a.label} onPress={a.onPress} style={styles.actionBtn}>
               <View style={styles.actionIcon}>
-                <Icon name={a.icon} size={20} color={haven.green} strokeWidth={2.1} />
+                <Icon name={a.icon} size={20} color={palm.green} strokeWidth={2.1} />
               </View>
-              <T weight="semibold" size={12} color={haven.inkSoft}>
+              <T weight="semibold" size={12} color={palm.inkSoft}>
                 {a.label}
               </T>
             </Pressable>
@@ -525,8 +525,8 @@ export function HavenShell() {
               Activity
             </T>
             <View style={styles.onlyYou}>
-              <Icon name="shield" size={10} color={haven.green} strokeWidth={2.4} />
-              <T weight="semibold" size={11} color={haven.green}>
+              <Icon name="shield" size={10} color={palm.green} strokeWidth={2.4} />
+              <T weight="semibold" size={11} color={palm.green}>
                 Only you can see this
               </T>
             </View>
@@ -534,7 +534,7 @@ export function HavenShell() {
           <View style={styles.activityCard}>
             {activity.length === 0 ? (
               <View style={{ padding: 24, alignItems: 'center' }}>
-                <T size={13.5} color={haven.inkFaint}>
+                <T size={13.5} color={palm.inkFaint}>
                   Your private activity will appear here.
                 </T>
               </View>
@@ -549,10 +549,10 @@ export function HavenShell() {
 
   function ActivityRow({ item, last }: { item: ActivityItem; last: boolean }) {
     const glyph: Record<ActivityItem['kind'], { icon: IconName; tint: string; fg: string }> = {
-      in: { icon: 'in', tint: '#E1EFE6', fg: haven.green },
-      out: { icon: 'out', tint: '#EEF1EE', fg: haven.inkSoft },
-      agent: { icon: 'agentGlyph', tint: '#F2EEDB', fg: haven.amber },
-      w: { icon: 'w', tint: haven.amberBgStrong, fg: haven.amber },
+      in: { icon: 'in', tint: '#E1EFE6', fg: palm.green },
+      out: { icon: 'out', tint: '#EEF1EE', fg: palm.inkSoft },
+      agent: { icon: 'agentGlyph', tint: '#F2EEDB', fg: palm.amber },
+      w: { icon: 'w', tint: palm.amberBgStrong, fg: palm.amber },
     };
     const g = glyph[item.kind];
     const sign = item.amount >= 0 ? '+' : '−';
@@ -565,7 +565,7 @@ export function HavenShell() {
           <T weight="semibold" size={14} numberOfLines={1}>
             {item.title}
           </T>
-          <T size={12} color={haven.inkFaint} style={{ marginTop: 1 }}>
+          <T size={12} color={palm.inkFaint} style={{ marginTop: 1 }}>
             {activityTime(item.ts)}
           </T>
         </View>
@@ -573,14 +573,14 @@ export function HavenShell() {
           {locked ? (
             <Secret locked w={52} h={16} />
           ) : (
-            <T weight="bold" size={14} color={item.amount >= 0 ? haven.green : haven.ink}>
+            <T weight="bold" size={14} color={item.amount >= 0 ? palm.green : palm.ink}>
               {sign}
               {formatUsd(usdcBase(Math.abs(item.amount)))}
             </T>
           )}
           {item.pending && (
             <View style={styles.transit}>
-              <T weight="semibold" size={11} color={haven.amber}>
+              <T weight="semibold" size={11} color={palm.amber}>
                 In transit
               </T>
             </View>
@@ -600,7 +600,7 @@ export function HavenShell() {
             <T weight="bold" size={22} style={{ letterSpacing: -0.5 }}>
               Agents
             </T>
-            <T size={13} color={haven.inkDim} style={{ marginTop: 2 }}>
+            <T size={13} color={palm.inkDim} style={{ marginTop: 2 }}>
               {active.length} active · {formatUsd(BigInt(Math.round(delegated)))} delegated
             </T>
           </View>
@@ -611,7 +611,7 @@ export function HavenShell() {
             }}
             style={styles.newVaultBtn}
           >
-            <T weight="semibold" size={13} color={haven.onDark}>
+            <T weight="semibold" size={13} color={palm.onDark}>
               + New vault
             </T>
           </Pressable>
@@ -619,8 +619,8 @@ export function HavenShell() {
 
         {locked && (
           <Pressable onPress={unlock} style={styles.lockedBanner}>
-            <Icon name="unlock" size={14} color={haven.onDark} strokeWidth={2.2} />
-            <T weight="semibold" size={13} color={haven.onDark}>
+            <Icon name="unlock" size={14} color={palm.onDark} strokeWidth={2.2} />
+            <T weight="semibold" size={13} color={palm.onDark}>
               Balances hidden — tap to unlock
             </T>
           </Pressable>
@@ -628,7 +628,7 @@ export function HavenShell() {
 
         {vaults.length === 0 && (
           <View style={styles.emptyCard}>
-            <T size={14} color={haven.inkDim} style={{ textAlign: 'center', lineHeight: 21 }}>
+            <T size={14} color={palm.inkDim} style={{ textAlign: 'center', lineHeight: 21 }}>
               No agent vaults yet. Create one to give an automation a private, capped allowance.
             </T>
           </View>
@@ -662,7 +662,7 @@ export function HavenShell() {
             <T weight="bold" size={15.5}>
               {name}
             </T>
-            <T size={12.5} color={haven.inkFaint}>
+            <T size={12.5} color={palm.inkFaint}>
               {v.account ? 'Agent vault' : 'Pending on-chain'}
             </T>
           </View>
@@ -675,7 +675,7 @@ export function HavenShell() {
                   {formatUsd(v.remainingAllowance)}
                 </T>
               )}
-              <T size={11} color={haven.inkFaint}>
+              <T size={11} color={palm.inkFaint}>
                 left to spend
               </T>
             </View>
@@ -688,13 +688,13 @@ export function HavenShell() {
           <View style={{ marginTop: 14 }}>
             <View style={styles.progressTrack}>
               <View style={{ width: `${pct}%`, backgroundColor: '#B9CFC2', borderRadius: 4 }} />
-              <View style={{ flex: 1, backgroundColor: haven.green, borderRadius: 4, marginLeft: 2 }} />
+              <View style={{ flex: 1, backgroundColor: palm.green, borderRadius: 4, marginLeft: 2 }} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-              <T size={11.5} color={haven.inkFaint}>
+              <T size={11.5} color={palm.inkFaint}>
                 spent {formatUsd(usdcBase(spent))} of {formatUsd(usdcBase(funded))}
               </T>
-              <T size={11.5} color={haven.inkFaint}>
+              <T size={11.5} color={palm.inkFaint}>
                 {v.account.paymentCount} payments
               </T>
             </View>
@@ -724,7 +724,7 @@ export function HavenShell() {
             const label = t === 'pending' && pendingActionable ? `Pending · ${pendingActionable}` : t[0].toUpperCase() + t.slice(1);
             return (
               <Pressable key={t} onPress={() => setReqTab(t)} style={[styles.segItem, on && styles.segItemOn]}>
-                <T weight="semibold" size={12.5} color={on ? haven.ink : '#7A857E'}>
+                <T weight="semibold" size={12.5} color={on ? palm.ink : '#7A857E'}>
                   {label}
                 </T>
               </Pressable>
@@ -734,8 +734,8 @@ export function HavenShell() {
 
         {locked && (
           <Pressable onPress={unlock} style={styles.lockedBanner}>
-            <Icon name="unlock" size={14} color={haven.onDark} strokeWidth={2.2} />
-            <T weight="semibold" size={13} color={haven.onDark}>
+            <Icon name="unlock" size={14} color={palm.onDark} strokeWidth={2.2} />
+            <T weight="semibold" size={13} color={palm.onDark}>
               Details hidden — tap to unlock
             </T>
           </Pressable>
@@ -744,9 +744,9 @@ export function HavenShell() {
         {list.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 48 }}>
             <View style={styles.emptyIcon}>
-              <Icon name="mailOpen" size={20} color={haven.inkFaint} strokeWidth={2} />
+              <Icon name="mailOpen" size={20} color={palm.inkFaint} strokeWidth={2} />
             </View>
-            <T weight="semibold" size={14} color={haven.inkDim} style={{ marginTop: 14 }}>
+            <T weight="semibold" size={14} color={palm.inkDim} style={{ marginTop: 14 }}>
               {reqTab === 'pending' ? 'Nothing waiting on you.' : reqTab === 'accepted' ? 'No accepted requests yet.' : 'Nothing denied or expired.'}
             </T>
           </View>
@@ -767,8 +767,8 @@ export function HavenShell() {
     const waiting = pending && iAmRequester && !iAmPayer;
 
     const tag = isAgent ? 'Agent approval' : iAmPayer ? 'Asks you' : 'Waiting on them';
-    const tagFg = isAgent ? haven.amber : iAmPayer ? haven.green : '#7A7F7C';
-    const tagBg = isAgent ? haven.amberBgStrong : iAmPayer ? '#E1EFE6' : '#EEF1EE';
+    const tagFg = isAgent ? palm.amber : iAmPayer ? palm.green : '#7A7F7C';
+    const tagBg = isAgent ? palm.amberBgStrong : iAmPayer ? '#E1EFE6' : '#EEF1EE';
     const title = isAgent
       ? `Agent wants to pay ${shortKey(a.requester.toBase58())}`
       : iAmPayer
@@ -780,8 +780,8 @@ export function HavenShell() {
         style={[
           styles.reqCard,
           {
-            backgroundColor: isAgent && pending ? '#FDFAF2' : haven.card,
-            borderColor: isAgent && pending ? '#EBDDB8' : haven.border,
+            backgroundColor: isAgent && pending ? '#FDFAF2' : palm.card,
+            borderColor: isAgent && pending ? '#EBDDB8' : palm.border,
           },
         ]}
       >
@@ -792,7 +792,7 @@ export function HavenShell() {
             </T>
           </View>
           <View style={{ flex: 1 }} />
-          <T size={11.5} color={haven.inkFaint}>
+          <T size={11.5} color={palm.inkFaint}>
             #{a.requestId.toString()}
           </T>
         </View>
@@ -801,7 +801,7 @@ export function HavenShell() {
             <T weight="semibold" size={14.5} style={{ lineHeight: 20 }}>
               {title}
             </T>
-            <T size={12.5} color={haven.inkDim} style={{ marginTop: 3 }}>
+            <T size={12.5} color={palm.inkDim} style={{ marginTop: 3 }}>
               expires {new Date(Number(a.expiresAt) * 1000).toLocaleDateString()}
             </T>
           </View>
@@ -826,7 +826,7 @@ export function HavenShell() {
         {waiting && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 }}>
             <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#C9D3CC' }} />
-            <T weight="semibold" size={12.5} color={haven.inkFaint}>
+            <T weight="semibold" size={12.5} color={palm.inkFaint}>
               Waiting for them — nothing needed from you
             </T>
           </View>
@@ -890,7 +890,7 @@ export function HavenShell() {
     if ((sheet === 'send' || sheet === 'request') && step === 0) {
       return (
         <View style={{ gap: 12 }}>
-          <T size={12.5} color={haven.inkFaint}>
+          <T size={12.5} color={palm.inkFaint}>
             {sheet === 'request'
               ? 'Who are you asking to pay you? Paste their private address.'
               : 'Who receives it? Only the two of you will ever see this payment.'}
@@ -899,7 +899,7 @@ export function HavenShell() {
             value={recipient}
             onChangeText={setRecipient}
             placeholder="Private address (base58 pubkey)"
-            placeholderTextColor={haven.inkGhost}
+            placeholderTextColor={palm.inkGhost}
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.input}
@@ -924,14 +924,14 @@ export function HavenShell() {
     if (sheet === 'create' && step === 0) {
       return (
         <View style={{ gap: 14 }}>
-          <T size={12.5} color={haven.inkFaint} style={{ lineHeight: 19 }}>
+          <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
             Which agent will spend from this vault? It only ever sees its own pocket — never your balance.
           </T>
           <TextInput
             value={vName}
             onChangeText={setVName}
             placeholder="Agent name"
-            placeholderTextColor={haven.inkGhost}
+            placeholderTextColor={palm.inkGhost}
             style={styles.input}
           />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -941,9 +941,9 @@ export function HavenShell() {
                 <Pressable
                   key={sg.name}
                   onPress={() => setVName(sg.name)}
-                  style={[styles.suggChip, { borderColor: sel ? haven.green : haven.border, backgroundColor: sel ? haven.greenTintBg : haven.card }]}
+                  style={[styles.suggChip, { borderColor: sel ? palm.green : palm.border, backgroundColor: sel ? palm.greenTintBg : palm.card }]}
                 >
-                  <T weight="semibold" size={13} color={haven.ink}>
+                  <T weight="semibold" size={13} color={palm.ink}>
                     {sg.name} · {sg.kind}
                   </T>
                 </Pressable>
@@ -998,10 +998,10 @@ export function HavenShell() {
       return (
         <View style={{ gap: 6 }}>
           <View style={{ alignItems: 'center', paddingTop: 8 }}>
-            <T weight="bold" size={40} color={amtOk ? haven.ink : haven.inkGhost} style={{ letterSpacing: -0.8 }}>
+            <T weight="bold" size={40} color={amtOk ? palm.ink : palm.inkGhost} style={{ letterSpacing: -0.8 }}>
               ${amount || '0'}
             </T>
-            <T size={12.5} color={haven.inkFaint} style={{ marginTop: 6, textAlign: 'center' }}>
+            <T size={12.5} color={palm.inkFaint} style={{ marginTop: 6, textAlign: 'center' }}>
               {captions[sheet!] ?? ''}
             </T>
           </View>
@@ -1031,7 +1031,7 @@ export function HavenShell() {
           <View style={styles.confirmBox}>
             {rows.map((r, i) => (
               <View key={r.k} style={[styles.confirmRow, i < rows.length - 1 && styles.activityDivider]}>
-                <T size={13} color={haven.inkFaint}>
+                <T size={13} color={palm.inkFaint}>
                   {r.k}
                 </T>
                 <T weight="semibold" size={14.5} style={{ textAlign: 'right' }}>
@@ -1042,13 +1042,13 @@ export function HavenShell() {
           </View>
           {isWithdraw && (
             <View style={styles.warnBox}>
-              <Icon name="clock" size={16} color={haven.amber} strokeWidth={2} />
-              <T size={12.5} color={haven.amberInk} style={{ flex: 1, lineHeight: 19 }}>
-                Withdrawals leave the private pool, so they take longer. You can keep using Haven — we'll notify you when it lands.
+              <Icon name="clock" size={16} color={palm.amber} strokeWidth={2} />
+              <T size={12.5} color={palm.amberInk} style={{ flex: 1, lineHeight: 19 }}>
+                Withdrawals leave the private pool, so they take longer. You can keep using Palm — we'll notify you when it lands.
               </T>
             </View>
           )}
-          <T size={12.5} color={haven.inkFaint} style={{ lineHeight: 19 }}>
+          <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
             {isWithdraw
               ? 'Heads up: withdrawn funds land on a public address and are no longer shielded.'
               : 'Private sends are final once confirmed.'}
@@ -1085,9 +1085,9 @@ export function HavenShell() {
             <Pressable
               key={o.label}
               onPress={() => onPick(o.v)}
-              style={[styles.optBtn, { borderColor: o.sel ? haven.green : haven.border, backgroundColor: o.sel ? haven.greenTintBg : haven.card }]}
+              style={[styles.optBtn, { borderColor: o.sel ? palm.green : palm.border, backgroundColor: o.sel ? palm.greenTintBg : palm.card }]}
             >
-              <T weight="bold" size={13.5} color={o.sel ? haven.green : haven.inkSoft}>
+              <T weight="bold" size={13.5} color={o.sel ? palm.green : palm.inkSoft}>
                 {o.label}
               </T>
             </Pressable>
@@ -1097,7 +1097,7 @@ export function HavenShell() {
 
       return (
         <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 18 }} showsVerticalScrollIndicator={false}>
-          <T size={12.5} color={haven.inkFaint} style={{ lineHeight: 19 }}>
+          <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
             {sheet === 'edit'
               ? `Changes apply to the next payment ${selVault?.label ?? 'this agent'} tries to make.`
               : `Rules for ${vName || 'this agent'}’s ${formatUsd(usdcBase(amt))}. Start simple — you can tighten or loosen anytime.`}
@@ -1122,20 +1122,20 @@ export function HavenShell() {
           {tier === 'large' && (
             <View style={styles.seatbelt}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Icon name="shield" size={14} color={haven.green} strokeWidth={2} />
-                <T weight="bold" size={13} color={haven.green}>
+                <Icon name="shield" size={14} color={palm.green} strokeWidth={2} />
+                <T weight="bold" size={13} color={palm.green}>
                   Seatbelts for larger budgets
                 </T>
               </View>
               <Pressable onPress={() => setDraft((d) => ({ ...d, allow: !d.allow }))} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={[styles.toggleTrack, { backgroundColor: draft.allow ? haven.green : '#CBD5CE' }]}>
+                <View style={[styles.toggleTrack, { backgroundColor: draft.allow ? palm.green : '#CBD5CE' }]}>
                   <View style={[styles.toggleKnob, { left: draft.allow ? 19 : 3 }]} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <T weight="semibold" size={13.5}>
                     Merchant allowlist
                   </T>
-                  <T size={12} color={haven.inkDim}>
+                  <T size={12} color={palm.inkDim}>
                     Only recipients you approve. Manage after creation.
                   </T>
                 </View>
@@ -1145,7 +1145,7 @@ export function HavenShell() {
                   Ask me above
                 </T>
                 <OptRow opts={threshOpts} onPick={(v) => setDraft((d) => ({ ...d, thresh: v }))} />
-                <T size={11.5} color={haven.inkDim} style={{ marginTop: 7 }}>
+                <T size={11.5} color={palm.inkDim} style={{ marginTop: 7 }}>
                   Payments above this wait for your explicit go-ahead.
                 </T>
               </View>
@@ -1183,7 +1183,7 @@ export function HavenShell() {
               <T weight="bold" size={17}>
                 {name}
               </T>
-              <T size={12.5} color={haven.inkFaint}>
+              <T size={12.5} color={palm.inkFaint}>
                 agent {shortKey(v.agent)}
               </T>
             </View>
@@ -1191,17 +1191,17 @@ export function HavenShell() {
 
           {v.account && (
             <View style={styles.vaultDark}>
-              <T weight="semibold" size={11.5} color={haven.onDarkDim} style={{ letterSpacing: 0.6 }}>
+              <T weight="semibold" size={11.5} color={palm.onDarkDim} style={{ letterSpacing: 0.6 }}>
                 LEFT TO SPEND
               </T>
-              <T weight="bold" size={30} color={haven.onDark} style={{ marginTop: 6 }}>
+              <T weight="bold" size={30} color={palm.onDark} style={{ marginTop: 6 }}>
                 {formatUsd(v.remainingAllowance)}
               </T>
               <View style={styles.vaultDarkTrack}>
                 <View style={{ width: `${pct}%`, backgroundColor: 'rgba(255,255,255,0.32)' }} />
-                <View style={{ flex: 1, backgroundColor: haven.mint, marginLeft: 2, borderRadius: 3 }} />
+                <View style={{ flex: 1, backgroundColor: palm.mint, marginLeft: 2, borderRadius: 3 }} />
               </View>
-              <T size={12} color={haven.onDarkDim} style={{ marginTop: 8 }}>
+              <T size={12} color={palm.onDarkDim} style={{ marginTop: 8 }}>
                 spent {formatUsd(usdcBase(spent))} of {formatUsd(usdcBase(funded))} · {v.account.paymentCount} payments
               </T>
             </View>
@@ -1211,7 +1211,7 @@ export function HavenShell() {
             <View style={styles.confirmBox}>
               {policyRows.map((p, i) => (
                 <View key={p.k} style={[styles.confirmRow, i < policyRows.length - 1 && styles.activityDivider]}>
-                  <T size={13} color={haven.inkFaint}>
+                  <T size={13} color={palm.inkFaint}>
                     {p.k}
                   </T>
                   <T weight="semibold" size={13.5}>
@@ -1251,22 +1251,22 @@ export function HavenShell() {
 
           {!revokeAsk ? (
             <Pressable onPress={() => setRevokeAsk(true)} style={styles.revokeBtn}>
-              <T weight="bold" size={14} color={haven.danger}>
+              <T weight="bold" size={14} color={palm.danger}>
                 Revoke — pull all funds back
               </T>
             </Pressable>
           ) : (
             <View style={styles.revokeConfirm}>
-              <T weight="bold" size={14} color={haven.danger}>
+              <T weight="bold" size={14} color={palm.danger}>
                 Pull back {formatUsd(v.remainingAllowance)} to your balance?
               </T>
-              <T size={12.5} color={haven.dangerInk} style={{ marginTop: 5, lineHeight: 19 }}>
+              <T size={12.5} color={palm.dangerInk} style={{ marginTop: 5, lineHeight: 19 }}>
                 {name} loses access instantly. This can't be undone — but you can always create a new vault.
               </T>
               <View style={{ flexDirection: 'row', gap: 9, marginTop: 13 }}>
                 <OutlineButton title="Keep vault" onPress={() => setRevokeAsk(false)} style={{ flex: 1, paddingVertical: 11 }} />
                 <Pressable onPress={doRevoke} style={styles.revokeNow}>
-                  <T weight="bold" size={13} color={haven.onDark}>
+                  <T weight="bold" size={13} color={palm.onDark}>
                     Revoke now
                   </T>
                 </Pressable>
@@ -1282,7 +1282,7 @@ export function HavenShell() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: haven.screen },
+  root: { flex: 1, backgroundColor: palm.screen },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1304,7 +1304,7 @@ const styles = StyleSheet.create({
 
   // balance
   balanceCard: {
-    backgroundColor: haven.greenDeep,
+    backgroundColor: palm.greenDeep,
     borderRadius: 22,
     paddingHorizontal: 22,
     paddingTop: 22,
@@ -1328,9 +1328,9 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 18,
-    backgroundColor: haven.card,
+    backgroundColor: palm.card,
     borderWidth: 1,
-    borderColor: haven.border,
+    borderColor: palm.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1340,42 +1340,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: haven.greenTintBg,
+    backgroundColor: palm.greenTintBg,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   activityCard: {
-    backgroundColor: haven.card,
+    backgroundColor: palm.card,
     borderWidth: 1,
-    borderColor: haven.border,
+    borderColor: palm.border,
     borderRadius: 18,
     overflow: 'hidden',
   },
   activityRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13 },
-  activityDivider: { borderBottomWidth: 1, borderBottomColor: haven.hairline },
+  activityDivider: { borderBottomWidth: 1, borderBottomColor: palm.hairline },
   activityIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  transit: { backgroundColor: haven.amberBg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 3 },
+  transit: { backgroundColor: palm.amberBg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 3 },
 
   // agents
-  newVaultBtn: { backgroundColor: haven.green, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
+  newVaultBtn: { backgroundColor: palm.green, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
   lockedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: haven.greenDeep,
+    backgroundColor: palm.greenDeep,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 13,
   },
-  emptyCard: { backgroundColor: haven.card, borderWidth: 1, borderColor: haven.border, borderRadius: 18, padding: 20 },
-  vaultCard: { backgroundColor: haven.card, borderWidth: 1, borderColor: haven.border, borderRadius: 20, padding: 18 },
+  emptyCard: { backgroundColor: palm.card, borderWidth: 1, borderColor: palm.border, borderRadius: 18, padding: 20 },
+  vaultCard: { backgroundColor: palm.card, borderWidth: 1, borderColor: palm.border, borderRadius: 20, padding: 18 },
   progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#E9EFEA', overflow: 'hidden', flexDirection: 'row' },
 
   // requests
   segmented: { flexDirection: 'row', gap: 6, backgroundColor: '#EBEFEC', borderRadius: 999, padding: 4 },
   segItem: { flex: 1, borderRadius: 999, paddingVertical: 9, alignItems: 'center' },
-  segItemOn: { backgroundColor: haven.card },
+  segItemOn: { backgroundColor: palm.card },
   emptyIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: '#EBEFEC', alignItems: 'center', justifyContent: 'center' },
   reqCard: { borderWidth: 1, borderRadius: 18, padding: 16 },
   reqTag: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
@@ -1384,8 +1384,8 @@ const styles = StyleSheet.create({
   nav: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: haven.border,
-    backgroundColor: haven.cardAlt,
+    borderTopColor: palm.border,
+    backgroundColor: palm.cardAlt,
     paddingTop: 6,
     paddingBottom: 6,
     paddingHorizontal: 8,
@@ -1410,7 +1410,7 @@ const styles = StyleSheet.create({
     bottom: 84,
     left: 24,
     right: 24,
-    backgroundColor: haven.notif,
+    backgroundColor: palm.notif,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 13,
@@ -1419,26 +1419,26 @@ const styles = StyleSheet.create({
   // sheet bodies
   input: {
     borderWidth: 1.5,
-    borderColor: haven.border,
+    borderColor: palm.border,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
     fontFamily: 'InstrumentSans_500Medium',
-    color: haven.ink,
-    backgroundColor: haven.cardAlt,
+    color: palm.ink,
+    backgroundColor: palm.cardAlt,
   },
   suggChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
-  confirmBox: { backgroundColor: haven.cardAlt, borderWidth: 1, borderColor: haven.borderSoft, borderRadius: 16, paddingHorizontal: 16 },
+  confirmBox: { backgroundColor: palm.cardAlt, borderWidth: 1, borderColor: palm.borderSoft, borderRadius: 16, paddingHorizontal: 16 },
   confirmRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11 },
-  warnBox: { flexDirection: 'row', gap: 11, backgroundColor: haven.amberBg, borderRadius: 14, padding: 14 },
+  warnBox: { flexDirection: 'row', gap: 11, backgroundColor: palm.amberBg, borderRadius: 14, padding: 14 },
   optBtn: { flex: 1, borderWidth: 1.5, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
   seatbelt: { backgroundColor: '#F2F7F3', borderRadius: 16, padding: 15, gap: 15 },
   toggleTrack: { width: 40, height: 24, borderRadius: 12, justifyContent: 'center' },
   toggleKnob: { position: 'absolute', top: 3, width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff' },
-  vaultDark: { backgroundColor: haven.greenDeep, borderRadius: 18, padding: 18 },
+  vaultDark: { backgroundColor: palm.greenDeep, borderRadius: 18, padding: 18 },
   vaultDarkTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden', flexDirection: 'row', marginTop: 14 },
-  revokeBtn: { borderWidth: 1, borderColor: haven.dangerBorder, backgroundColor: haven.dangerBg, borderRadius: 999, paddingVertical: 14, alignItems: 'center' },
-  revokeConfirm: { backgroundColor: haven.dangerBg, borderWidth: 1, borderColor: haven.dangerBorder, borderRadius: 16, padding: 16 },
-  revokeNow: { flex: 1.3, backgroundColor: haven.danger, borderRadius: 999, paddingVertical: 11, alignItems: 'center' },
+  revokeBtn: { borderWidth: 1, borderColor: palm.dangerBorder, backgroundColor: palm.dangerBg, borderRadius: 999, paddingVertical: 14, alignItems: 'center' },
+  revokeConfirm: { backgroundColor: palm.dangerBg, borderWidth: 1, borderColor: palm.dangerBorder, borderRadius: 16, padding: 16 },
+  revokeNow: { flex: 1.3, backgroundColor: palm.danger, borderRadius: 999, paddingVertical: 11, alignItems: 'center' },
 });

@@ -1,9 +1,9 @@
 /**
  * App root — providers, font loading, and the onboarding gate.
  *
- * The signed-in experience is a single custom shell (HavenShell) with its own
+ * The signed-in experience is a single custom shell (PalmShell) with its own
  * header, tabs and bottom-sheets, so we no longer need a navigator here — the
- * gate simply chooses Onboarding vs HavenShell based on persisted wallet state.
+ * gate simply chooses Onboarding vs PalmShell based on persisted wallet state.
  */
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -19,13 +19,13 @@ import {
 import { AppProviders } from './src/providers/AppProviders';
 import { useWallet } from './src/context/WalletContext';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
-import { HavenShell } from './src/screens/HavenShell';
-import { haven } from './src/theme';
+import { PalmShell } from './src/screens/PalmShell';
+import { palm } from './src/theme';
 
 function Loader() {
   return (
-    <View style={{ flex: 1, backgroundColor: haven.screen, alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator color={haven.green} />
+    <View style={{ flex: 1, backgroundColor: palm.screen, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color={palm.green} />
     </View>
   );
 }
@@ -34,7 +34,7 @@ function Gate() {
   const w = useWallet();
   if (!w.ready) return <Loader />;
   const onboarded = w.step === 'done' && !!w.signer;
-  return onboarded ? <HavenShell /> : <OnboardingScreen />;
+  return onboarded ? <PalmShell /> : <OnboardingScreen />;
 }
 
 export default function App() {

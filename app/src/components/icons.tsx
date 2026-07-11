@@ -1,6 +1,6 @@
 /**
- * Haven icon set — thin single-weight line icons drawn with react-native-svg.
- * Paths lifted 1:1 from the Haven design so the app matches it exactly.
+ * Palm icon set — thin single-weight line icons drawn with react-native-svg.
+ * Paths lifted 1:1 from the Palm design so the app matches it exactly.
  */
 import React from 'react';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';

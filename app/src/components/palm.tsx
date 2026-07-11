@@ -1,7 +1,7 @@
 /**
- * Haven shared UI primitives — themed text, buttons, chips, the deterministic
+ * Palm shared UI primitives — themed text, buttons, chips, the deterministic
  * agent "mark" avatar, and the bottom-sheet shell. Everything renders in the
- * Haven light palette with Instrument Sans.
+ * Palm light palette with Instrument Sans.
  */
 import React, { useEffect, useRef } from 'react';
 import {
@@ -16,7 +16,7 @@ import {
   type TextProps,
   type ViewStyle,
 } from 'react-native';
-import { haven, font } from '../theme';
+import { palm, font } from '../theme';
 import { Icon } from './icons';
 
 // ── Text ────────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ const familyFor = (w: Weight) => font[w];
 
 export function T({
   weight = 'regular',
-  color = haven.ink,
+  color = palm.ink,
   size = 14,
   style,
   children,
@@ -50,7 +50,7 @@ export function Logo({ size = 28 }: { size?: number }) {
         width: size,
         height: size,
         borderRadius: size * 0.32,
-        backgroundColor: haven.greenDeep,
+        backgroundColor: palm.greenDeep,
         alignItems: 'center',
         justifyContent: 'center',
       }}
@@ -93,9 +93,9 @@ export function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={haven.onDark} />
+        <ActivityIndicator color={palm.onDark} />
       ) : (
-        <T weight="semibold" color={haven.onDark} size={15.5}>
+        <T weight="semibold" color={palm.onDark} size={15.5}>
           {title}
         </T>
       )}
@@ -106,7 +106,7 @@ export function PrimaryButton({
 export function GhostButton({
   title,
   onPress,
-  color = haven.inkDim,
+  color = palm.inkDim,
   style,
 }: {
   title: string;
@@ -134,7 +134,7 @@ export function OutlineButton({
 }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.outline, { opacity: pressed ? 0.7 : 1 }, style]}>
-      <T weight="semibold" color={haven.ink} size={13.5}>
+      <T weight="semibold" color={palm.ink} size={13.5}>
         {title}
       </T>
     </Pressable>
@@ -144,8 +144,8 @@ export function OutlineButton({
 // ── Chip ─────────────────────────────────────────────────────────────────────
 export function Chip({
   label,
-  bg = haven.fill,
-  fg = haven.inkSoft,
+  bg = palm.fill,
+  fg = palm.inkSoft,
 }: {
   label: string;
   bg?: string;
@@ -169,7 +169,7 @@ export interface Mark {
 export function markFor(name: string): Mark {
   const h = [...String(name || '?')].reduce((a, c) => a + c.charCodeAt(0), 0);
   const i = h % 4;
-  const inner: ViewStyle = { transform: [{ rotate: `${haven.markRots[i]}deg` }] };
+  const inner: ViewStyle = { transform: [{ rotate: `${palm.markRots[i]}deg` }] };
   if (i === 1) inner.borderRadius = 99;
   else if (i === 3) {
     inner.borderTopLeftRadius = 10;
@@ -177,7 +177,7 @@ export function markFor(name: string): Mark {
     inner.borderBottomRightRadius = 10;
     inner.borderBottomLeftRadius = 3;
   } else inner.borderRadius = 3;
-  return { tint: haven.markTints[i], fg: haven.markFgs[i], inner };
+  return { tint: palm.markTints[i], fg: palm.markFgs[i], inner };
 }
 
 export function MarkAvatar({ name, size = 44 }: { name: string; size?: number }) {
@@ -269,7 +269,7 @@ export function Sheet({
           <View style={styles.sheetHead}>
             {canBack ? (
               <Pressable onPress={onBack} style={styles.headBtn}>
-                <T size={15} color={haven.inkSoft}>
+                <T size={15} color={palm.inkSoft}>
                   ←
                 </T>
               </Pressable>
@@ -278,7 +278,7 @@ export function Sheet({
               {title}
             </T>
             <Pressable onPress={onClose} style={styles.headBtn}>
-              <T size={15} color={haven.inkSoft}>
+              <T size={15} color={palm.inkSoft}>
                 ✕
               </T>
             </Pressable>
@@ -311,7 +311,7 @@ export function Secret({
         width: w,
         height: h,
         borderRadius: 6,
-        backgroundColor: dark ? 'rgba(255,255,255,0.18)' : haven.fill,
+        backgroundColor: dark ? 'rgba(255,255,255,0.18)' : palm.fill,
       }}
     />
   );
@@ -328,7 +328,7 @@ export function Keypad({ onKey }: { onKey: (k: string) => void }) {
           onPress={() => onKey(k)}
           style={({ pressed }) => [styles.key, pressed && { backgroundColor: '#E3EDE6' }]}
         >
-          <T weight="semibold" size={21} color={haven.ink}>
+          <T weight="semibold" size={21} color={palm.ink}>
             {k}
           </T>
         </Pressable>
@@ -356,28 +356,28 @@ export function SheetStatus({
           width: 60,
           height: 60,
           borderRadius: 20,
-          backgroundColor: kind === 'done' ? haven.green : haven.greenTintBg,
+          backgroundColor: kind === 'done' ? palm.green : palm.greenTintBg,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
         {kind === 'busy' ? (
-          <ActivityIndicator color={haven.green} />
+          <ActivityIndicator color={palm.green} />
         ) : (
-          <Icon name="check" color={haven.onDark} size={26} strokeWidth={2.6} />
+          <Icon name="check" color={palm.onDark} size={26} strokeWidth={2.6} />
         )}
       </View>
       <View style={{ alignItems: 'center', gap: 5 }}>
         <T weight="bold" size={15.5}>
           {title}
         </T>
-        <T size={13} color={haven.inkFaint} style={{ textAlign: 'center', maxWidth: 270, lineHeight: 19 }}>
+        <T size={13} color={palm.inkFaint} style={{ textAlign: 'center', maxWidth: 270, lineHeight: 19 }}>
           {caption}
         </T>
       </View>
       {kind === 'done' && onDone ? (
         <Pressable onPress={onDone} style={styles.doneBtn}>
-          <T weight="semibold" size={14} color={haven.ink}>
+          <T weight="semibold" size={14} color={palm.ink}>
             Done
           </T>
         </Pressable>
@@ -388,7 +388,7 @@ export function SheetStatus({
 
 const styles = StyleSheet.create({
   primary: {
-    backgroundColor: haven.green,
+    backgroundColor: palm.green,
     borderRadius: 999,
     paddingVertical: 16,
     alignItems: 'center',
@@ -397,8 +397,8 @@ const styles = StyleSheet.create({
   ghost: { paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
   outline: {
     borderWidth: 1,
-    borderColor: haven.border,
-    backgroundColor: haven.card,
+    borderColor: palm.border,
+    backgroundColor: palm.card,
     borderRadius: 999,
     paddingVertical: 13,
     alignItems: 'center',
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(8,22,16,0.45)' },
   sheet: {
-    backgroundColor: haven.card,
+    backgroundColor: palm.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 22,
@@ -434,12 +434,12 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: haven.fill,
+    backgroundColor: palm.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   doneBtn: {
-    backgroundColor: haven.fill,
+    backgroundColor: palm.fill,
     borderRadius: 999,
     paddingHorizontal: 28,
     paddingVertical: 12,

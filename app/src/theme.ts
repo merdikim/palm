@@ -1,13 +1,13 @@
 /**
- * Haven design tokens — light, private-payments palette.
+ * Palm design tokens — light, private-payments palette.
  *
- * Colors, radii, spacing and typography extracted from the "Haven — Private
+ * Colors, radii, spacing and typography extracted from the "Palm — Private
  * Payments" design. `theme.colors` keeps the generic token names the rest of
- * the app already references; `haven` adds the fuller palette the redesigned
+ * the app already references; `palm` adds the fuller palette the redesigned
  * screens use directly.
  */
 
-export const haven = {
+export const palm = {
   // surfaces
   screen: '#F6F8F6',
   screenOuter: '#ECF0ED',
@@ -74,17 +74,17 @@ export const font = {
 /** Back-compat generic token surface (used by older primitives). */
 export const theme = {
   colors: {
-    bg: haven.screen,
-    surface: haven.card,
-    surfaceAlt: haven.cardAlt,
-    border: haven.border,
-    text: haven.ink,
-    textDim: haven.inkDim,
-    primary: haven.green,
-    primaryText: haven.onDark,
-    success: haven.green,
-    danger: haven.danger,
-    warning: haven.amber,
+    bg: palm.screen,
+    surface: palm.card,
+    surfaceAlt: palm.cardAlt,
+    border: palm.border,
+    text: palm.ink,
+    textDim: palm.inkDim,
+    primary: palm.green,
+    primaryText: palm.onDark,
+    success: palm.green,
+    danger: palm.danger,
+    warning: palm.amber,
   },
   radius: 16,
   space: (n: number) => n * 4,
