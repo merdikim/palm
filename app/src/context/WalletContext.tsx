@@ -13,7 +13,6 @@ import React, {
 } from 'react';
 import { LocalKeypairSigner, type Signer } from '../lib/signer';
 import { getTeeToken, clearSession, peekSession } from '../lib/session';
-import { getPrivateBalance } from '../lib/actions';
 import {
   getOnboardingStep,
   setOnboardingStep,
@@ -26,15 +25,12 @@ interface WalletState {
   signer: Signer | null;
   publicKey: string | null;
   step: OnboardingStep;
-  balance: bigint | null;
-  balanceLoading: boolean;
   authed: boolean;
   // actions
   createWallet: () => Promise<void>;
   importWallet: (secretBase58: string) => Promise<void>;
   authenticate: () => Promise<void>;
   advanceStep: (step: OnboardingStep) => Promise<void>;
-  refreshBalance: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -44,8 +40,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [signer, setSigner] = useState<Signer | null>(null);
   const [step, setStep] = useState<OnboardingStep>('welcome');
-  const [balance, setBalance] = useState<bigint | null>(null);
-  const [balanceLoading, setBalanceLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
@@ -87,23 +81,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setStep(next);
   }, []);
 
-  const refreshBalance = useCallback(async () => {
-    if (!signer) return;
-    setBalanceLoading(true);
-    try {
-      setBalance(await getPrivateBalance(signer));
-      setAuthed(true);
-    } finally {
-      setBalanceLoading(false);
-    }
-  }, [signer]);
-
   const signOut = useCallback(async () => {
     await clearSession();
     await resetOnboarding();
     await LocalKeypairSigner.wipe();
     setSigner(null);
-    setBalance(null);
     setAuthed(false);
     setStep('welcome');
   }, []);
@@ -114,28 +96,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       signer,
       publicKey: signer?.publicKey.toBase58() ?? null,
       step,
-      balance,
-      balanceLoading,
       authed,
       createWallet,
       importWallet,
       authenticate,
       advanceStep,
-      refreshBalance,
       signOut,
     }),
     [
       ready,
       signer,
       step,
-      balance,
-      balanceLoading,
       authed,
       createWallet,
       importWallet,
       authenticate,
       advanceStep,
-      refreshBalance,
       signOut,
     ],
   );

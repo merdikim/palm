@@ -8,16 +8,17 @@
  * Resumable: the initial step is derived from persisted wallet state, so a
  * killed/backgrounded app resumes where it left off.
  */
-import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Pressable, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Dimensions, Easing, ScrollView, StyleSheet, Pressable, View } from 'react-native';
 import { ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Stop, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
 import { useWallet } from '../context/WalletContext';
 import { deposit } from '../lib/actions';
 import { addActivity } from '../lib/activity';
 import { ensureRegistered } from '../lib/relay';
 import { T, PrimaryButton, GhostButton, Logo, MarkAvatar } from '../components/haven';
-import { Icon } from '../components/icons';
+import { Icon, type IconName } from '../components/icons';
 import { haven } from '../theme';
 
 const WALLETS = [
@@ -27,6 +28,76 @@ const WALLETS = [
 ];
 const FUND_OPTS = [100, 500, 1000];
 const fmt0 = (n: number) => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+// Welcome-screen geometry + iris-close transition scale.
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const GLOW_CY = SCREEN_H * 0.42;
+const IRIS_BASE = 220;
+const IRIS_FINAL = (Math.hypot(SCREEN_W, SCREEN_H) * 1.2) / IRIS_BASE;
+
+/** The things Haven keeps private — each with its own icon, rolled in the hero. */
+const ITEMS: { word: string; icon: IconName }[] = [
+  { word: 'agents', icon: 'agents' },
+  { word: 'payments', icon: 'send' },
+  { word: 'privacy', icon: 'shield' },
+];
+
+/** Backdrop on a white field: a faint green glow + one subtle ring. */
+function WelcomeBackdrop() {
+  return (
+    <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
+      <Defs>
+        <RadialGradient id="wglow" cx="50%" cy="42%" r="62%">
+          <Stop offset="0" stopColor={haven.green} stopOpacity="0.07" />
+          <Stop offset="1" stopColor={haven.green} stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      <SvgRect x={0} y={0} width={SCREEN_W} height={SCREEN_H} fill="url(#wglow)" />
+      <SvgCircle cx={SCREEN_W / 2} cy={GLOW_CY} r={230} stroke={haven.green} strokeOpacity={0.09} strokeWidth={1.5} fill="none" />
+    </Svg>
+  );
+}
+
+/**
+ * Hero roller — an icon + word slides up and out while the next slides up and
+ * in (fade + spring), clipped to a single line.
+ */
+function RollingItem({ items, interval = 1700 }: { items: typeof ITEMS; interval?: number }) {
+  const [i, setI] = useState(0);
+  const y = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      Animated.parallel([
+        Animated.timing(y, { toValue: -26, duration: 260, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start(() => {
+        setI((prev) => (prev + 1) % items.length);
+        y.setValue(28);
+        Animated.parallel([
+          Animated.spring(y, { toValue: 0, friction: 7, tension: 80, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        ]).start();
+      });
+    }, interval);
+    return () => clearInterval(id);
+  }, [items.length, interval, y, opacity]);
+
+  const it = items[i];
+  return (
+    <View style={styles.itemMask}>
+      <Animated.View style={[styles.itemRow, { opacity, transform: [{ translateY: y }] }]}>
+        <View style={styles.itemIcon}>
+          <Icon name={it.icon} size={26} color={haven.green} strokeWidth={2} />
+        </View>
+        <T size={22} color={haven.green} numberOfLines={1}>
+          {it.word}
+        </T>
+      </Animated.View>
+    </View>
+  );
+}
 
 export function OnboardingScreen() {
   const w = useWallet();
@@ -41,6 +112,28 @@ export function OnboardingScreen() {
   const [busy, setBusy] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [fundPick, setFundPick] = useState(500);
+
+  // welcome → connect: a green "logo circle" irises closed over the screen,
+  // step 1 is swapped in underneath, then the circle irises back open.
+  const [closing, setClosing] = useState(false);
+  const iris = useRef(new Animated.Value(0)).current; // 0 → 1 (cover) → 2 (reveal)
+  const goNext = () => {
+    if (closing) return;
+    setClosing(true);
+    iris.setValue(0);
+    Animated.timing(iris, { toValue: 1, duration: 500, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
+      ({ finished }) => {
+        if (!finished) return;
+        setStep(1);
+        Animated.timing(iris, { toValue: 2, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(
+          () => {
+            setClosing(false);
+            iris.setValue(0);
+          },
+        );
+      },
+    );
+  };
 
   const err = (e: unknown) => Alert.alert('Something went wrong', (e as Error).message);
 
@@ -77,7 +170,7 @@ export function OnboardingScreen() {
       await deposit(w.signer, fundPick);
       await addActivity({ kind: 'in', title: 'Added funds', amount: fundPick });
       await w.advanceStep('done');
-      await w.refreshBalance();
+      // balance is fetched by the HavenShell's react-query hooks once mounted
     } catch (e) {
       err(e);
     } finally {
@@ -89,9 +182,43 @@ export function OnboardingScreen() {
 
   const seg = (on: boolean) => (on ? haven.green : '#DCE2DE');
 
+  // ── step 0 · welcome (white field, subtle green rings, wheel picker) ──
+  const welcome = (
+    <View style={styles.welcomeRoot}>
+      <WelcomeBackdrop />
+
+      <SafeAreaView style={styles.welcomeSafe} edges={['top', 'bottom']}>
+        {/* brand lockup */}
+        <View style={styles.wTop}>
+          <Logo size={30} />
+          <T weight="bold" size={17} color={haven.ink}>
+            Haven
+          </T>
+        </View>
+
+        {/* hero */}
+        <View style={styles.wHero}>
+          <T weight="bold" size={35} color={haven.ink} style={styles.headline}>
+            Your onchain <T weight="bold" size={35} color={haven.green}>privacy</T> control center
+          </T>
+          <RollingItem items={ITEMS} />
+        </View>
+
+        {/* cta */}
+        <View style={styles.wBottom}>
+          <PrimaryButton title="Get started" onPress={goNext} />
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <View style={styles.rootWrap}>
+      {step === 0 ? (
+        welcome
+      ) : (
+        <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* progress */}
         {step > 0 && (
           <View style={{ gap: 8, marginBottom: 8 }}>
@@ -106,35 +233,6 @@ export function OnboardingScreen() {
                   {l.toUpperCase()}
                 </T>
               ))}
-            </View>
-          </View>
-        )}
-
-        {/* step 0 · welcome */}
-        {step === 0 && (
-          <View style={{ flex: 1 }}>
-            <View style={styles.welcomeCenter}>
-              <View style={styles.welcomeLogo}>
-                <View style={styles.welcomeRing} />
-              </View>
-              <T weight="bold" size={30} style={{ textAlign: 'center', letterSpacing: -0.6, marginBottom: 10 }}>
-                Money that keeps{'\n'}to itself.
-              </T>
-              <T size={15} color={haven.inkDim} style={{ textAlign: 'center', lineHeight: 23, maxWidth: 290 }}>
-                A private balance for you. Bounded, revocable budgets for the agents that spend on your behalf.
-              </T>
-              <View style={styles.badge}>
-                <Icon name="shield" size={13} color={haven.green} strokeWidth={2} />
-                <T weight="semibold" size={12.5} color={haven.green}>
-                  Shielded by default
-                </T>
-              </View>
-            </View>
-            <View style={{ gap: 10 }}>
-              <PrimaryButton title="Get started" onPress={() => setStep(1)} />
-              <T size={12.5} color={haven.inkFaint} style={{ textAlign: 'center' }}>
-                Takes about a minute. Safe to leave and come back.
-              </T>
             </View>
           </View>
         )}
@@ -249,8 +347,22 @@ export function OnboardingScreen() {
             )}
           </View>
         )}
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+        </SafeAreaView>
+      )}
+
+      {/* iris-close: a green "logo circle" wipes between welcome and step 1 */}
+      {closing && (
+        <View pointerEvents="none" style={styles.irisWrap}>
+          <Animated.View
+            style={[
+              styles.iris,
+              { transform: [{ scale: iris.interpolate({ inputRange: [0, 1, 2], outputRange: [0.001, IRIS_FINAL, 0.001] }) }] },
+            ]}
+          />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -259,26 +371,35 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 28 },
   segBar: { flex: 1, height: 4, borderRadius: 2 },
   segLabel: { letterSpacing: 0.5 },
-  welcomeCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  welcomeLogo: {
-    width: 76,
-    height: 76,
-    borderRadius: 22,
-    backgroundColor: haven.greenDeep,
+  // ── welcome (white field, subtle green rings) ──
+  rootWrap: { flex: 1, backgroundColor: haven.screen },
+  welcomeRoot: { flex: 1, backgroundColor: haven.screen },
+  welcomeSafe: { flex: 1, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
+  wTop: { flexDirection: 'row', alignItems: 'center', gap: 9, alignSelf: 'center', paddingVertical: 6 },
+  wHero: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  headline: { textAlign: 'center', letterSpacing: -0.9, lineHeight: 40, maxWidth: 330 },
+  wBottom: { gap: 14 },
+
+  // ── hero rolling item (icon + word) ──
+  itemMask: { alignSelf: 'stretch', height: 52, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', marginTop: 60 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  itemIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: haven.greenTintBg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 22,
   },
-  welcomeRing: { width: 34, height: 34, borderRadius: 17, borderWidth: 3.5, borderColor: '#EAF4EE' },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: haven.greenTintBg,
-    borderRadius: 999,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    marginTop: 26,
+  bigWord: { letterSpacing: -0.8 },
+
+  // ── iris-close transition (green logo circle) ──
+  irisWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', marginTop: -(SCREEN_H * 0.08) },
+  iris: {
+    width: IRIS_BASE,
+    height: IRIS_BASE,
+    borderRadius: IRIS_BASE / 2,
+    backgroundColor: haven.greenDeep,
   },
   walletRow: {
     flexDirection: 'row',

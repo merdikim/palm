@@ -1,5 +1,6 @@
 /** Number/pubkey formatting helpers (USDC has 6 decimals). */
 import { USDC_DECIMALS } from './constants';
+import { ellipsify } from '../utils/ellipsify';
 
 export const usdcBase = (dollars: number): bigint =>
   BigInt(Math.round(dollars * 10 ** USDC_DECIMALS));
@@ -18,8 +19,7 @@ export function formatUsd(base: bigint | number): string {
   });
 }
 
-/** Short pubkey: "AbCd…WxYz". */
-export function shortKey(key: string, lead = 4, tail = 4): string {
-  if (key.length <= lead + tail + 1) return key;
-  return `${key.slice(0, lead)}…${key.slice(-tail)}`;
+/** Short pubkey: "AbCd…WxYz". Thin wrapper over the shared `ellipsify` util. */
+export function shortKey(key: string, len = 4): string {
+  return ellipsify(key, len);
 }

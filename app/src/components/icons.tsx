@@ -23,7 +23,11 @@ export type IconName =
   | 'agentGlyph'
   | 'w'
   | 'clock'
-  | 'mailOpen';
+  | 'mailOpen'
+  | 'swap'
+  | 'wallet'
+  | 'coins'
+  | 'repeat';
 
 export function Icon({
   name,
@@ -125,6 +129,29 @@ export function Icon({
           <Path d="M4.5 8l7.5 5.5L19.5 8" {...common} />
         </>
       );
+      break;
+    case 'swap':
+      body = <Path d="M8 20V5M5 8l3-3 3 3M16 4v15M19 16l-3 3-3-3" {...common} />;
+      break;
+    case 'wallet':
+      body = (
+        <>
+          <Rect x={3} y={6} width={18} height={13} rx={3} {...common} />
+          <Path d="M16 11h5v4h-5a2 2 0 010-4z" {...common} />
+        </>
+      );
+      break;
+    case 'coins':
+      body = (
+        <>
+          <Path d="M20 7c0 1.66-3.58 3-8 3S4 8.66 4 7s3.58-3 8-3 8 1.34 8 3z" {...common} />
+          <Path d="M4 7v5c0 1.66 3.58 3 8 3s8-1.34 8-3V7" {...common} />
+          <Path d="M4 12v5c0 1.66 3.58 3 8 3s8-1.34 8-3v-5" {...common} />
+        </>
+      );
+      break;
+    case 'repeat':
+      body = <Path d="M17 3l3 3-3 3M20 6H9a5 5 0 00-5 5M7 21l-3-3 3-3M4 18h11a5 5 0 005-5" {...common} />;
       break;
   }
 

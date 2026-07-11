@@ -8,7 +8,6 @@
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   InstrumentSans_400Regular,
@@ -17,7 +16,8 @@ import {
   InstrumentSans_700Bold,
 } from '@expo-google-fonts/instrument-sans';
 
-import { WalletProvider, useWallet } from './src/context/WalletContext';
+import { AppProviders } from './src/providers/AppProviders';
+import { useWallet } from './src/context/WalletContext';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { HavenShell } from './src/screens/HavenShell';
 import { haven } from './src/theme';
@@ -46,15 +46,9 @@ export default function App() {
   });
 
   return (
-    <SafeAreaProvider>
+    <AppProviders>
       <StatusBar style="dark" />
-      {fontsLoaded ? (
-        <WalletProvider>
-          <Gate />
-        </WalletProvider>
-      ) : (
-        <Loader />
-      )}
-    </SafeAreaProvider>
+      {fontsLoaded ? <Gate /> : <Loader />}
+    </AppProviders>
   );
 }

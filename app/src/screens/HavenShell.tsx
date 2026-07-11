@@ -4,8 +4,9 @@
  * withdraw, request, create vault, vault detail, top up, edit policy).
  *
  * All money actions call the real devnet flows in lib/actions; the private
- * balance comes from the TEE-native read in WalletContext. Sensitive numbers
- * are masked while the balance is "locked".
+ * balance, vaults, requests, and activity are read via @tanstack/react-query
+ * (see hooks/useSolanaData) and invalidated after each action. Sensitive
+ * numbers are masked while the balance is "locked".
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -26,6 +27,7 @@ import bs58 from 'bs58';
 import * as Notifications from 'expo-notifications';
 
 import { useWallet } from '../context/WalletContext';
+import { useBalance, useVaults, useRequests, useActivity, useInvalidateData } from '../hooks/useSolanaData';
 import {
   deposit,
   withdraw,
@@ -35,8 +37,6 @@ import {
   topUpVault,
   updateVaultPolicy,
   revokeVault,
-  fetchAllVaults,
-  fetchAllRequests,
   respondToRequest,
   type VaultView,
   type RequestView,
@@ -44,12 +44,7 @@ import {
 import { RecipientNotOnboardedError } from '../lib/payments';
 import type { Policy } from '../lib/vault';
 import { formatUsd, fromUsdc, usdcBase, shortKey } from '../lib/format';
-import {
-  listActivity,
-  addActivity,
-  activityTime,
-  type ActivityItem,
-} from '../lib/activity';
+import { addActivity, activityTime, type ActivityItem } from '../lib/activity';
 import { haven } from '../theme';
 import { Icon, type IconName } from '../components/icons';
 import {
@@ -59,7 +54,6 @@ import {
   OutlineButton,
   Chip,
   MarkAvatar,
-  InitialAvatar,
   Sheet,
   SheetStatus,
   Secret,
@@ -104,11 +98,18 @@ export function HavenShell() {
   const [locked, setLocked] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
 
-  // data
-  const [vaults, setVaults] = useState<VaultView[]>([]);
-  const [requests, setRequests] = useState<RequestView[]>([]);
-  const [activity, setActivity] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  // data (react-query)
+  const balanceQ = useBalance();
+  const vaultsQ = useVaults();
+  const requestsQ = useRequests();
+  const activityQ = useActivity();
+  const invalidate = useInvalidateData();
+
+  const balance = balanceQ.data ?? null;
+  const vaults: VaultView[] = vaultsQ.data ?? [];
+  const requests: RequestView[] = requestsQ.data ?? [];
+  const activity: ActivityItem[] = activityQ.data ?? [];
+  const loading = balanceQ.isFetching || vaultsQ.isFetching || requestsQ.isFetching || activityQ.isFetching;
 
   // sheet
   const [sheet, setSheet] = useState<SheetKind>(null);
@@ -142,54 +143,20 @@ export function HavenShell() {
     [toastY],
   );
 
-  const balanceDollars = w.balance != null ? fromUsdc(w.balance) : 0;
+  const balanceDollars = balance != null ? fromUsdc(balance) : 0;
 
-  // ── data loading ───────────────────────────────────────────────────────────
-  const loadVaults = useCallback(async () => {
-    if (!w.signer) return;
-    try {
-      setVaults(await fetchAllVaults(w.signer));
-    } catch {
-      /* keep prior */
-    }
-  }, [w.signer]);
-
-  const loadRequests = useCallback(async () => {
-    if (!w.signer) return;
-    try {
-      setRequests(await fetchAllRequests(w.signer));
-    } catch {
-      /* keep prior */
-    }
-  }, [w.signer]);
-
-  const loadActivity = useCallback(async () => {
-    setActivity(await listActivity());
-  }, []);
-
-  const reloadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      await Promise.all([w.refreshBalance().catch(() => {}), loadVaults(), loadRequests(), loadActivity()]);
-    } finally {
-      setLoading(false);
-    }
-  }, [w, loadVaults, loadRequests, loadActivity]);
-
-  useEffect(() => {
-    reloadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // react-query owns fetching; "reload" just busts the caches
+  const reloadAll = invalidate;
 
   // deep-link push taps → Requests tab
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
       setTab('requests');
       setReqTab('pending');
-      loadRequests();
+      invalidate();
     });
     return () => sub.remove();
-  }, [loadRequests]);
+  }, [invalidate]);
 
   // ── lock ─────────────────────────────────────────────────────────────────--
   const unlock = () => {
@@ -509,7 +476,7 @@ export function HavenShell() {
               </Secret>
             ) : (
               <T weight="bold" size={38} color={haven.onDark} style={{ letterSpacing: -0.8 }}>
-                {w.balance == null ? '—' : formatUsd(w.balance)}
+                {balance == null ? '—' : formatUsd(balance)}
               </T>
             )}
             <T size={13} color={haven.onDarkDim} style={{ marginTop: 6 }}>
@@ -998,11 +965,11 @@ export function HavenShell() {
     if (isAmount) {
       const captions: Record<string, string> = {
         add: 'Into your shielded balance — visible only to you',
-        send: `To ${shortKey(recipient.trim())} · ${formatUsd(w.balance ?? 0n)} available · arrives in seconds`,
-        withdraw: `${formatUsd(w.balance ?? 0n)} available · takes longer`,
+        send: `To ${shortKey(recipient.trim())} · ${formatUsd(balance ?? 0n)} available · arrives in seconds`,
+        withdraw: `${formatUsd(balance ?? 0n)} available · takes longer`,
         request: `Asking ${shortKey(recipient.trim())} — they see it only after unlocking`,
         create: `This becomes ${vName || 'the agent'}’s entire allowance`,
-        topup: `From your private balance · ${formatUsd(w.balance ?? 0n)} available`,
+        topup: `From your private balance · ${formatUsd(balance ?? 0n)} available`,
       };
       const btnLabels: Record<string, string> = {
         add: `Add $${amount || '0'}`,
