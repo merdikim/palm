@@ -12,21 +12,27 @@
       "backgroundColor": "#0b0d12",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.palm.private"
+      "bundleIdentifier": "io.usepalm.app"
     },
     "android": {
-      "package": "app.palm.private"
+      "package": "io.usepalm.app"
     },
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-secure-store", "expo-notifications"],
+    "plugins": [
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-asset"
+    ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "c7c03273-1a5c-45d0-8a86-b71bb646cd6c"
       }
     }
   }
