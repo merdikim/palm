@@ -8,7 +8,7 @@
  * pins `cluster=devnet`; private flows pin the TEE validator.
  */
 import { Transaction, VersionedTransaction } from '@solana/web3.js';
-import { Buffer } from 'buffer';
+import { Buffer } from './buffer';
 import bs58 from 'bs58';
 import {
   PAYMENTS_API,

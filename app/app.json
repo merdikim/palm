@@ -5,13 +5,9 @@
     "scheme": "palm",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0b0d12",
-    "newArchEnabled": true,
-    "splash": {
-      "backgroundColor": "#0b0d12",
-      "resizeMode": "contain"
-    },
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F6F8F6",
+    "icon": "./assets/icon.png",
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -20,7 +16,11 @@
       "bundleIdentifier": "io.usepalm.app"
     },
     "android": {
-      "package": "io.usepalm.app"
+      "package": "io.usepalm.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D3B2E"
+      }
     },
     "web": {
       "bundler": "metro"
@@ -28,7 +28,16 @@
     "plugins": [
       "expo-secure-store",
       "expo-notifications",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#F6F8F6"
+        }
+      ]
     ],
     "extra": {
       "eas": {

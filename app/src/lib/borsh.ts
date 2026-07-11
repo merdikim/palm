@@ -10,7 +10,7 @@
  * bundle small and deterministic. See app/README.md ("anchor decision").
  */
 import { PublicKey } from '@solana/web3.js';
-import { Buffer } from 'buffer';
+import { Buffer } from './buffer';
 
 // ---------------------------------------------------------------------------
 // Writer

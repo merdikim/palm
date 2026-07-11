@@ -12,9 +12,9 @@
  * Adapted for RN: signing goes through the `Signer` interface (not a raw
  * Keypair), and there is no `node:*` usage.
  */
+import { Buffer } from './buffer';
 import { PublicKey, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { Buffer } from 'buffer';
 import bs58 from 'bs58';
 import { TEE_ER_ENDPOINT } from './constants';
 import { teeConnection } from './connections';

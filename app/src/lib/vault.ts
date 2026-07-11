@@ -7,6 +7,7 @@
  * in `./borsh`. PDA/ATA derivations, account ordering, arg encoding, and the
  * instruction discriminators all mirror the bundled IDL (`src/idl/vault.json`).
  */
+import { Buffer } from './buffer';
 import {
   PublicKey,
   SystemProgram,
@@ -17,7 +18,6 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
-import { Buffer } from 'buffer';
 import { VAULT_PROGRAM_ID } from './constants';
 import { BorshWriter, BorshReader } from './borsh';
 

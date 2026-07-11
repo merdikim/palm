@@ -3,9 +3,9 @@
  * results where the contract is settled, and is annotated where a leg is
  * best-effort / stubbed (swap on devnet, vault top-up onto the ER).
  */
+import { Buffer } from './buffer';
 import { PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { Buffer } from 'buffer';
 import { USDC_DEVNET } from './constants';
 import type { Signer } from './signer';
 import { getTeeToken } from './session';
