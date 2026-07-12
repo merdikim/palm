@@ -14,10 +14,21 @@ import {
   PAYMENTS_API,
   PAYMENTS_CLUSTER,
   TEE_VALIDATOR_IDENTITY,
+  USDC_DECIMALS,
   USDC_DEVNET,
 } from './constants';
 import { baseConnection, teeConnection } from './connections';
 import type { Signer } from './signer';
+
+// The screens pass whole-token (UI) amounts — `12.5` means $12.50. The Payments
+// API and the on-chain SPL program work in base units, so every amount is scaled
+// by the mint's denominator (10^decimals) before we build the tx the wallet
+// signs. Convention: a `number` is whole tokens (scaled here); a `bigint` is
+// already in base units (passed through). USDC-only on devnet → USDC_DECIMALS.
+const toBaseUnits = (amount: number | bigint): number =>
+  typeof amount === 'bigint'
+    ? Number(amount)
+    : Math.round(amount * 10 ** USDC_DECIMALS);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,7 +128,7 @@ export function buildDeposit(opts: {
     method: 'POST',
     body: JSON.stringify({
       owner: opts.owner,
-      amount: Number(opts.amount),
+      amount: toBaseUnits(opts.amount),
       mint: opts.mint ?? USDC_DEVNET,
       cluster: PAYMENTS_CLUSTER,
       validator: TEE_VALIDATOR_IDENTITY,
@@ -138,7 +149,7 @@ export function buildWithdraw(opts: {
     method: 'POST',
     body: JSON.stringify({
       owner: opts.owner,
-      amount: Number(opts.amount),
+      amount: toBaseUnits(opts.amount),
       mint: opts.mint ?? USDC_DEVNET,
       cluster: PAYMENTS_CLUSTER,
       validator: TEE_VALIDATOR_IDENTITY,
@@ -174,7 +185,7 @@ export function buildTransfer(
       from: opts.from,
       to: opts.to,
       mint: opts.mint ?? USDC_DEVNET,
-      amount: Number(opts.amount),
+      amount: toBaseUnits(opts.amount),
       visibility: opts.visibility,
       fromBalance: opts.fromBalance,
       toBalance: opts.toBalance,

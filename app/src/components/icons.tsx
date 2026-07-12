@@ -136,8 +136,9 @@ export function Icon({
     case 'wallet':
       body = (
         <>
-          <Rect x={3} y={6} width={18} height={13} rx={3} {...common} />
-          <Path d="M16 11h5v4h-5a2 2 0 010-4z" {...common} />
+          <Path d="M21 12V7H5a2 2 0 010-4h14v4" {...common} />
+          <Path d="M3 5v14a2 2 0 002 2h16v-5" {...common} />
+          <Path d="M18 12a2 2 0 000 4h4v-4h-4z" {...common} />
         </>
       );
       break;

@@ -5,7 +5,7 @@
  */
 import { Buffer } from './buffer';
 import { PublicKey } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { USDC_DEVNET } from './constants';
 import type { Signer } from './signer';
 import { getTeeToken } from './session';
@@ -54,8 +54,29 @@ const USDC = new PublicKey(USDC_DEVNET);
 // Balance (TEE-native private read)
 // ---------------------------------------------------------------------------
 export async function getPrivateBalance(signer: Signer): Promise<bigint> {
+  // The TEE ER clones the PUBLIC base balance for any ATA that hasn't been
+  // delegated yet (spikes S2#9) — so a wallet that skipped its first deposit
+  // would otherwise read its public USDC here. Delegation reassigns the ATA away
+  // from the SPL Token program, so a plain (or missing) token account means the
+  // funds are still public and the private balance is zero. Only a delegated ATA
+  // has a real shielded balance to read from the TEE.
+  const ata = getAssociatedTokenAddressSync(USDC, signer.publicKey, true);
+  const base = await baseConnection().getAccountInfo(ata);
+  if (!base || base.owner.equals(TOKEN_PROGRAM_ID)) return 0n;
   const token = await getTeeToken(signer);
   return readTeeBalance(signer.publicKey, USDC, token);
+}
+
+/**
+ * The wallet's PUBLIC USDC balance on the base layer — the spendable pool a
+ * deposit draws from. Reads the owner's canonical USDC ATA directly (SPL amount
+ * @ offset 64); returns 0n when the ATA doesn't exist yet (never funded).
+ */
+export async function getPublicUsdcBalance(owner: PublicKey): Promise<bigint> {
+  const ata = getAssociatedTokenAddressSync(USDC, owner, true);
+  const info = await baseConnection().getAccountInfo(ata);
+  if (!info || info.data.length < 72) return 0n;
+  return Buffer.from(info.data).readBigUInt64LE(64);
 }
 
 // ---------------------------------------------------------------------------

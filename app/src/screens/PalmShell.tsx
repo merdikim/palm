@@ -11,7 +11,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Easing,
   Pressable,
@@ -22,7 +21,7 @@ import {
   View,
 } from 'react-native';
 import { useRef } from 'react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import * as Notifications from 'expo-notifications';
@@ -94,6 +93,9 @@ const SUGGESTIONS = [
 
 export function PalmShell() {
   const w = useWallet();
+  // Bottom nav sits outside the safe area (SafeAreaView only insets the top), so
+  // pad it clear of the phone's gesture bar / nav buttons.
+  const insets = useSafeAreaInsets();
 
   // navigation / lock
   const [tab, setTab] = useState<'home' | 'agents' | 'requests'>('home');
@@ -377,21 +379,8 @@ export function PalmShell() {
   // resets onboarding. The App gate reacts to signer/step becoming null/welcome
   // and swaps back to the OnboardingScreen — no manual navigation needed.
   const disconnect = () => {
-    Alert.alert(
-      'Disconnect wallet',
-      'Palm will forget this wallet on your device and return to the start. Your funds stay in the wallet.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Disconnect',
-          style: 'destructive',
-          onPress: () => {
-            closeSheet();
-            w.signOut().catch((e) => showToast((e as Error).message));
-          },
-        },
-      ],
-    );
+    closeSheet();
+    w.signOut().catch((e) => showToast((e as Error).message));
   };
 
   // ── render ───────────────────────────────────────────────────────────────---
@@ -405,24 +394,20 @@ export function PalmShell() {
             Palm
           </T>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Pressable
             onPress={toggleLock}
-            style={[
-              styles.lockChip,
-              {
-                backgroundColor: locked ? palm.greenDeep : palm.greenTintBg,
-                borderColor: locked ? palm.greenDeep : palm.greenTintBorder,
-              },
-            ]}
+            style={styles.iconBtn}
+            accessibilityLabel={unlocking ? 'Unlocking' : locked ? 'Locked' : 'Unlocked'}
           >
-            <Icon name={locked ? 'lock' : 'unlock'} size={12} color={locked ? palm.onDark : palm.green} strokeWidth={2.2} />
-            <T weight="semibold" size={12.5} color={locked ? palm.onDark : palm.green}>
-              {unlocking ? 'Unlocking…' : locked ? 'Locked' : 'Unlocked'}
-            </T>
+            {unlocking ? (
+              <ActivityIndicator size="small" color={palm.green} />
+            ) : (
+              <Icon name={locked ? 'lock' : 'unlock'} size={17} color={locked ? palm.green : palm.inkDim} strokeWidth={2.2} />
+            )}
           </Pressable>
-          <Pressable onPress={() => openSheet('account')} hitSlop={8} accessibilityLabel="Account">
-            <MarkAvatar name={me ?? 'Palm'} size={32} />
+          <Pressable onPress={() => openSheet('account')} style={styles.iconBtn} accessibilityLabel="Account">
+            <Icon name="wallet" size={18} color={palm.ink} strokeWidth={2} />
           </Pressable>
         </View>
       </View>
@@ -439,7 +424,7 @@ export function PalmShell() {
       </ScrollView>
 
       {/* bottom nav */}
-      <View style={styles.nav}>
+      <View style={[styles.nav, { paddingBottom: 6 + insets.bottom }]}>
         {([
           { key: 'home', label: 'Home', icon: 'home' as IconName },
           { key: 'agents', label: 'Agents', icon: 'agents' as IconName },
@@ -507,9 +492,6 @@ export function PalmShell() {
                 {balance == null ? '—' : formatUsd(balance)}
               </T>
             )}
-            <T size={13} color={palm.onDarkDim} style={{ marginTop: 6 }}>
-              ≈ {balanceDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pUSD · shielded
-            </T>
           </View>
           {locked && (
             <View style={styles.unlockPill}>
@@ -561,7 +543,7 @@ export function PalmShell() {
           </View>
           <View style={styles.activityCard}>
             {activity.length === 0 ? (
-              <View style={{ padding: 24, alignItems: 'center' }}>
+              <View style={{ padding: 24, height: 200, justifyContent: 'center', alignItems: 'center' }}>
                 <T size={13.5} color={palm.inkFaint}>
                   Your private activity will appear here.
                 </T>
@@ -1353,14 +1335,12 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 10,
   },
-  lockChip: {
-    flexDirection: 'row',
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 7,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    justifyContent: 'center',
   },
   content: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 24 },
 
@@ -1431,10 +1411,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   activityCard: {
-    backgroundColor: palm.card,
-    borderWidth: 1,
-    borderColor: palm.border,
-    borderRadius: 18,
     overflow: 'hidden',
   },
   activityRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13 },
