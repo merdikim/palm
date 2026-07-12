@@ -18,6 +18,7 @@ export type IconName =
   | 'send'
   | 'withdraw'
   | 'request'
+  | 'link'
   | 'in'
   | 'out'
   | 'agentGlyph'
@@ -101,6 +102,14 @@ export function Icon({
       break;
     case 'request':
       body = <Path d="M17 7L7 17M14.5 17H7V9.5" {...common} />;
+      break;
+    case 'link':
+      body = (
+        <>
+          <Path d="M10 13a4.5 4.5 0 006.36.36l2.5-2.5a4.5 4.5 0 00-6.36-6.36l-1.5 1.49" {...common} />
+          <Path d="M14 11a4.5 4.5 0 00-6.36-.36l-2.5 2.5a4.5 4.5 0 006.36 6.36l1.49-1.5" {...common} />
+        </>
+      );
       break;
     case 'in':
       body = <Path d="M12 19V5M6 11l6-6 6 6" {...common} />;

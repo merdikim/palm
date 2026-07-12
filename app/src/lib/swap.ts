@@ -7,7 +7,7 @@
  * funds at a bad price. A mainnet build swaps this for the live `/v1/swap` flow
  * without changing call sites.
  */
-import { USDC_DEVNET } from './constants';
+import { USDC_MINT } from './constants';
 import type { Quote } from './vault';
 
 export interface SwapQuoteRequest {
@@ -34,7 +34,7 @@ export class MockSwapProvider implements SwapProvider {
   ) {}
 
   async quote(req: SwapQuoteRequest): Promise<Quote> {
-    if (req.outputMint === USDC_DEVNET || req.inputMint === req.outputMint) {
+    if (req.outputMint === USDC_MINT || req.inputMint === req.outputMint) {
       return { usdcDebit: req.amountOut, quotedSlippageBps: 0 };
     }
     // usdcDebit = amountOut / rate, inflated by the spread.

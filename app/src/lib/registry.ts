@@ -2,19 +2,19 @@
  * Local registries kept in secure storage.
  *
  * Two on-chain discovery problems are awkward for a thin client, so we keep
- * local hints (spikes S3/S4):
+ * local hints:
  *   - Vaults: enumerating a wallet's own vault PDAs on-chain is awkward, so we
  *     remember the agent pubkeys we created vaults for.
- *   - Requests: we remember request ids we created / are involved in, alongside
- *     the deterministic counter-based derivation, so we can derive+fetch without
- *     a full program scan.
+ *   - Links: a claim link's secret is the only key to its funds, so we persist
+ *     outgoing links to re-share or reclaim them (they are otherwise stateless
+ *     throwaway accounts we could never rediscover).
  *
  * These are convenience caches only — the chain remains the source of truth.
  */
 import * as SecureStore from 'expo-secure-store';
 
 const VAULTS_STORE = 'palm.registry.vaults.v1';
-const REQUESTS_STORE = 'palm.registry.requests.v1';
+const LINKS_STORE = 'palm.registry.links.v1';
 
 // --- Agent (vault) registry -------------------------------------------------
 export interface VaultEntry {
@@ -56,30 +56,38 @@ export async function removeVaultEntry(agent: string): Promise<void> {
   );
 }
 
-// --- Request registry -------------------------------------------------------
-export type RequestDirection = 'to_me' | 'from_me' | 'agent_approval';
-
-export interface RequestEntry {
-  payer: string; // the payer pubkey the request PDA is seeded by
-  requestId: string; // u64 as string
-  direction: RequestDirection;
+// --- Outgoing claim-link registry -------------------------------------------
+// The link's secret is the ONLY key to its funds. We persist it so a sender who
+// dismissed the share sheet (or whose recipient never claims) can re-share or
+// reclaim — otherwise the funds would be stranded on the throwaway account.
+export interface LinkEntry {
+  url: string; // full palm://claim#… (carries the secret)
+  linkAddress: string; // throwaway account pubkey (base58)
+  amount: string; // base units (USDC)
+  memo?: string;
   createdAt: number;
 }
 
-export async function listRequestEntries(): Promise<RequestEntry[]> {
-  return readJson<RequestEntry[]>(REQUESTS_STORE, []);
+export async function listLinkEntries(): Promise<LinkEntry[]> {
+  return readJson<LinkEntry[]>(LINKS_STORE, []);
 }
 
-export async function addRequestEntry(entry: RequestEntry): Promise<void> {
-  const all = await listRequestEntries();
-  if (all.some((r) => r.payer === entry.payer && r.requestId === entry.requestId)) {
-    return;
-  }
+export async function addLinkEntry(entry: LinkEntry): Promise<void> {
+  const all = await listLinkEntries();
+  if (all.some((l) => l.linkAddress === entry.linkAddress)) return;
   all.push(entry);
-  await writeJson(REQUESTS_STORE, all);
+  await writeJson(LINKS_STORE, all);
+}
+
+export async function removeLinkEntry(linkAddress: string): Promise<void> {
+  const all = await listLinkEntries();
+  await writeJson(
+    LINKS_STORE,
+    all.filter((l) => l.linkAddress !== linkAddress),
+  );
 }
 
 export async function clearRegistries(): Promise<void> {
   await SecureStore.deleteItemAsync(VAULTS_STORE);
-  await SecureStore.deleteItemAsync(REQUESTS_STORE);
+  await SecureStore.deleteItemAsync(LINKS_STORE);
 }

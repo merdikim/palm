@@ -4,8 +4,8 @@
  *
  * The API is stateless — it only *builds* unsigned transactions. This client
  * builds; the caller signs (via the `Signer`) and submits to the chain named in
- * `sendTo` (base = web3 devnet, ephemeral = TEE with `?token=`). Every request
- * pins `cluster=devnet`; private flows pin the TEE validator.
+ * `sendTo` (base = mainnet base layer, ephemeral = TEE with `?token=`). Every
+ * request pins `cluster=mainnet`; private flows pin the TEE validator.
  */
 import { Transaction, VersionedTransaction } from '@solana/web3.js';
 import { Buffer } from './buffer';
@@ -15,7 +15,7 @@ import {
   PAYMENTS_CLUSTER,
   TEE_VALIDATOR_IDENTITY,
   USDC_DECIMALS,
-  USDC_DEVNET,
+  USDC_MINT,
 } from './constants';
 import { baseConnection, teeConnection } from './connections';
 import type { Signer } from './signer';
@@ -24,7 +24,7 @@ import type { Signer } from './signer';
 // API and the on-chain SPL program work in base units, so every amount is scaled
 // by the mint's denominator (10^decimals) before we build the tx the wallet
 // signs. Convention: a `number` is whole tokens (scaled here); a `bigint` is
-// already in base units (passed through). USDC-only on devnet → USDC_DECIMALS.
+// already in base units (passed through). USDC-only → USDC_DECIMALS.
 const toBaseUnits = (amount: number | bigint): number =>
   typeof amount === 'bigint'
     ? Number(amount)
@@ -98,21 +98,23 @@ export interface ApiSession {
 
 export async function apiLogin(signer: Signer): Promise<ApiSession> {
   const pubkey = signer.publicKey.toBase58();
-  const { challenge } = await api<{ challenge: string }>('/v1/spl/challenge', {
+  const /*{ challenge }*/ res = await api<{ challenge: string }>('/v1/spl/challenge', {
     method: 'GET',
     query: { pubkey, cluster: PAYMENTS_CLUSTER },
   });
-  const sig = await signer.signMessage(new TextEncoder().encode(challenge));
-  const { token } = await api<{ token: string }>('/v1/spl/login', {
+  console.log('res 1', res);
+  const sig = await signer.signMessage(new TextEncoder().encode(res.challenge));
+  const /*{ token }*/ res2 = await api<{ token: string }>('/v1/spl/login', {
     method: 'POST',
     body: JSON.stringify({
       pubkey,
-      challenge,
+      challenge: res.challenge,
       signature: bs58.encode(sig),
       cluster: PAYMENTS_CLUSTER,
     }),
   });
-  return { pubkey, token, issuedAt: Date.now() };
+  console.log('token - ', res2);
+  return { pubkey, token: res2.token, issuedAt: Date.now() };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +131,7 @@ export function buildDeposit(opts: {
     body: JSON.stringify({
       owner: opts.owner,
       amount: toBaseUnits(opts.amount),
-      mint: opts.mint ?? USDC_DEVNET,
+      mint: opts.mint ?? USDC_MINT,
       cluster: PAYMENTS_CLUSTER,
       validator: TEE_VALIDATOR_IDENTITY,
       initIfMissing: true,
@@ -150,7 +152,7 @@ export function buildWithdraw(opts: {
     body: JSON.stringify({
       owner: opts.owner,
       amount: toBaseUnits(opts.amount),
-      mint: opts.mint ?? USDC_DEVNET,
+      mint: opts.mint ?? USDC_MINT,
       cluster: PAYMENTS_CLUSTER,
       validator: TEE_VALIDATOR_IDENTITY,
       initIfMissing: true,
@@ -184,7 +186,7 @@ export function buildTransfer(
     body: JSON.stringify({
       from: opts.from,
       to: opts.to,
-      mint: opts.mint ?? USDC_DEVNET,
+      mint: opts.mint ?? USDC_MINT,
       amount: toBaseUnits(opts.amount),
       visibility: opts.visibility,
       fromBalance: opts.fromBalance,
@@ -205,7 +207,7 @@ export function buildTransfer(
 // ---------------------------------------------------------------------------
 // Balances
 // ---------------------------------------------------------------------------
-export function baseBalance(address: string, mint = USDC_DEVNET) {
+export function baseBalance(address: string, mint = USDC_MINT) {
   return api<{ balance: string; ata: string; location: string }>(
     '/v1/spl/balance',
     { method: 'GET', query: { address, mint, cluster: PAYMENTS_CLUSTER } },
@@ -236,7 +238,7 @@ export function swapQuote(opts: {
 
 // ---------------------------------------------------------------------------
 // Sign + submit a BuiltTx to the chain the API names in `sendTo`.
-//   base       -> devnet base layer, use API's blockhash verbatim
+//   base       -> mainnet base layer, use API's blockhash verbatim
 //   ephemeral  -> TEE ER, re-stamp the ER blockhash before signing (S2#6),
 //                 token required (`?token=`)
 // Always checks confirmTransaction().value.err (S2#8).

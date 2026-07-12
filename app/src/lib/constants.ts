@@ -1,50 +1,49 @@
 /**
- * App-local copy of the shared devnet constants.
+ * App-local network constants.
  *
  * The RN app cannot import from `../../shared` (that tree uses node ESM +
- * `node:fs`), so these values are COPIED verbatim from
- * `shared/constants.ts`. If the shared file changes, mirror it here.
+ * `node:fs`), so these values are kept here directly.
  *
- * DEVNET ONLY. No mainnet endpoints exist anywhere in this app by design.
+ * MAINNET. These are real endpoints and real funds — every flow moves live USDC.
  */
 
 // ---------------------------------------------------------------------------
-// Base-layer Solana (devnet)
+// Base-layer Solana (mainnet)
 // ---------------------------------------------------------------------------
-export const SOLANA_DEVNET_RPC = 'https://api.devnet.solana.com';
-// MagicBlock's sponsored base-layer RPC (clones ER state, better for delegation)
-export const MAGICBLOCK_BASE_RPC = 'https://rpc.magicblock.app/devnet';
+// MagicBlock's mainnet RPC — MagicBlock-native (clones ER state, better for
+// delegation) and needs no API key. Swap in a paid RPC (Helius/Triton/QuickNode)
+// here if you hit rate limits; `api.mainnet-beta.solana.com` is heavily throttled.
+export const SOLANA_RPC = 'https://rpc.magicblock.app/mainnet';
+export const MAGICBLOCK_BASE_RPC = 'https://rpc.magicblock.app/mainnet';
 
 // ---------------------------------------------------------------------------
-// MagicBlock routing + ephemeral rollup (devnet)
+// MagicBlock routing + ephemeral rollup (mainnet)
 // ---------------------------------------------------------------------------
-export const ROUTER_ENDPOINT = 'https://devnet-router.magicblock.app';
-export const ROUTER_WS_ENDPOINT = 'wss://devnet-router.magicblock.app';
+export const ROUTER_ENDPOINT = 'https://router.magicblock.app';
+export const ROUTER_WS_ENDPOINT = 'wss://router.magicblock.app';
 
-// The TEE-backed devnet validator — this is what makes rollups *private*.
-export const TEE_ER_ENDPOINT = 'https://devnet-tee.magicblock.app';
-export const TEE_ER_WS_ENDPOINT = 'wss://devnet-tee.magicblock.app';
+// The TEE-backed validator — this is what makes rollups *private*. The mainnet
+// TEE validator identity is the same key as devnet (verified via getIdentity).
+export const TEE_ER_ENDPOINT = 'https://mainnet-tee.magicblock.app';
+export const TEE_ER_WS_ENDPOINT = 'wss://mainnet-tee.magicblock.app';
 export const TEE_VALIDATOR_IDENTITY =
   'MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo';
-
-// The non-TEE (public) devnet ER default. NOT used for private flows.
-export const DEFAULT_DEVNET_VALIDATOR =
-  'MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57';
 
 // ---------------------------------------------------------------------------
 // Hosted Private Payments API
 // ---------------------------------------------------------------------------
 export const PAYMENTS_API = 'https://payments.magicblock.app';
-export const PAYMENTS_CLUSTER = 'devnet';
+export const PAYMENTS_CLUSTER = 'mainnet';
 
 // ---------------------------------------------------------------------------
-// Mints (devnet)
+// Mints (mainnet)
 // ---------------------------------------------------------------------------
-export const USDC_DEVNET = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+// Circle USDC on Solana mainnet.
+export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const USDC_DECIMALS = 6;
 
 // ---------------------------------------------------------------------------
-// MagicBlock program IDs
+// MagicBlock program IDs (same across clusters)
 // ---------------------------------------------------------------------------
 export const DELEGATION_PROGRAM_ID =
   'DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh';
@@ -55,7 +54,9 @@ export const PERMISSION_PROGRAM_ID =
 export const ESPL_TOKEN_PROGRAM_ID =
   'SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2';
 
-// The vault program (this project). Deployed to devnet 2026-07-10.
+// The vault program (this project). NOTE: this ID is the DEVNET deployment and
+// does NOT exist on mainnet yet — the agents/vaults feature will fail until the
+// program is deployed to mainnet and this ID is replaced with the mainnet one.
 export const VAULT_PROGRAM_ID = '3955LkKVs64NZTo9dGKXAoRx7wAURcKstuXZxDqoqYtW';
 
 // ---------------------------------------------------------------------------

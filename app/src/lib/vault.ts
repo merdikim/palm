@@ -23,8 +23,6 @@ import { BorshWriter, BorshReader } from './borsh';
 
 export const PROGRAM_ID = new PublicKey(VAULT_PROGRAM_ID);
 export const VAULT_SEED = Buffer.from('vault');
-export const REQUEST_SEED = Buffer.from('request');
-export const COUNTER_SEED = Buffer.from('req_counter');
 
 // Instruction discriminators (from IDL).
 const IX = {
@@ -32,16 +30,11 @@ const IX = {
   agentPay: [191, 210, 112, 56, 82, 215, 140, 233],
   reclaim: [44, 177, 236, 249, 145, 109, 163, 186],
   updatePolicy: [212, 245, 246, 7, 163, 151, 18, 57],
-  createRequest: [219, 191, 93, 237, 18, 44, 42, 84],
-  requestAgentApproval: [131, 228, 36, 178, 192, 254, 133, 85],
-  respondRequest: [37, 78, 107, 16, 167, 160, 154, 207],
 } as const;
 
 // Account discriminators (from IDL).
 const ACCT = {
   agentVault: [232, 220, 237, 164, 157, 9, 215, 194],
-  paymentRequest: [27, 20, 202, 96, 101, 242, 124, 69],
-  requestCounter: [220, 43, 83, 73, 39, 210, 63, 108],
 } as const;
 
 const disc = (d: readonly number[]) => Buffer.from(d);
@@ -52,23 +45,6 @@ const disc = (d: readonly number[]) => Buffer.from(d);
 export function vaultPda(owner: PublicKey, agent: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [VAULT_SEED, owner.toBuffer(), agent.toBuffer()],
-    PROGRAM_ID,
-  );
-}
-export function counterPda(payer: PublicKey): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [COUNTER_SEED, payer.toBuffer()],
-    PROGRAM_ID,
-  );
-}
-export function requestPda(
-  payer: PublicKey,
-  requestId: bigint | number,
-): [PublicKey, number] {
-  const idBuf = Buffer.alloc(8);
-  idBuf.writeBigUInt64LE(BigInt(requestId));
-  return PublicKey.findProgramAddressSync(
-    [REQUEST_SEED, payer.toBuffer(), idBuf],
     PROGRAM_ID,
   );
 }
@@ -215,130 +191,6 @@ export function updatePolicyIx(
   });
 }
 
-export function createRequestIx(
-  requester: PublicKey,
-  payer: PublicKey,
-  mintOut: PublicKey,
-  amountOut: bigint,
-  expiresAt: bigint,
-  memoHash: number[],
-): TransactionInstruction {
-  const [counter] = counterPda(payer);
-  const [request] = requestPda(payer, 0); // NOTE: request PDA uses counter.next_id.
-  const w = new BorshWriter();
-  w.pubkey(payer).pubkey(mintOut).u64(amountOut).i64(expiresAt).fixedBytes(memoHash);
-  const data = Buffer.concat([disc(IX.createRequest), w.toBuffer()]);
-  return new TransactionInstruction({
-    programId: PROGRAM_ID,
-    keys: [
-      { pubkey: requester, isSigner: true, isWritable: true },
-      { pubkey: counter, isSigner: false, isWritable: true },
-      { pubkey: request, isSigner: false, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
-    data,
-  });
-}
-
-/**
- * Build `create_request` with an explicit next request id (the payer's current
- * `counter.next_id`), so the `request` PDA seed matches the on-chain expectation.
- * Prefer this over `createRequestIx` when the counter value is known.
- */
-export function createRequestIxWithId(
-  requester: PublicKey,
-  payer: PublicKey,
-  nextId: bigint,
-  mintOut: PublicKey,
-  amountOut: bigint,
-  expiresAt: bigint,
-  memoHash: number[],
-): TransactionInstruction {
-  const [counter] = counterPda(payer);
-  const [request] = requestPda(payer, nextId);
-  const w = new BorshWriter();
-  w.pubkey(payer).pubkey(mintOut).u64(amountOut).i64(expiresAt).fixedBytes(memoHash);
-  const data = Buffer.concat([disc(IX.createRequest), w.toBuffer()]);
-  return new TransactionInstruction({
-    programId: PROGRAM_ID,
-    keys: [
-      { pubkey: requester, isSigner: true, isWritable: true },
-      { pubkey: counter, isSigner: false, isWritable: true },
-      { pubkey: request, isSigner: false, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
-    data,
-  });
-}
-
-export function requestAgentApprovalIx(
-  owner: PublicKey,
-  agent: PublicKey,
-  funder: PublicKey,
-  nextId: bigint,
-  mintOut: PublicKey,
-  amountOut: bigint,
-  quote: Quote,
-  expiresAt: bigint,
-  memoHash: number[],
-): TransactionInstruction {
-  const [vault] = vaultPda(owner, agent);
-  const [counter] = counterPda(owner);
-  const [request] = requestPda(owner, nextId);
-  const w = new BorshWriter();
-  w.pubkey(mintOut).u64(amountOut);
-  writeQuote(w, quote);
-  w.i64(expiresAt).fixedBytes(memoHash);
-  const data = Buffer.concat([disc(IX.requestAgentApproval), w.toBuffer()]);
-  return new TransactionInstruction({
-    programId: PROGRAM_ID,
-    keys: [
-      { pubkey: agent, isSigner: true, isWritable: false },
-      { pubkey: funder, isSigner: true, isWritable: true },
-      { pubkey: vault, isSigner: false, isWritable: false },
-      { pubkey: counter, isSigner: false, isWritable: true },
-      { pubkey: request, isSigner: false, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
-    data,
-  });
-}
-
-export function respondRequestIx(
-  payer: PublicKey,
-  requestId: bigint,
-  accept: boolean,
-  quote: Quote,
-  opts: {
-    payerSource?: PublicKey | null;
-    vault?: PublicKey | null;
-    vaultUsdc?: PublicKey | null;
-    destUsdc?: PublicKey | null;
-  } = {},
-): TransactionInstruction {
-  const [request] = requestPda(payer, requestId);
-  const w = new BorshWriter();
-  w.bool(accept);
-  writeQuote(w, quote);
-  const data = Buffer.concat([disc(IX.respondRequest), w.toBuffer()]);
-  // Anchor optional accounts: pass the program id as the placeholder when absent.
-  const optional = (pk: PublicKey | null | undefined) =>
-    pk ?? PROGRAM_ID;
-  return new TransactionInstruction({
-    programId: PROGRAM_ID,
-    keys: [
-      { pubkey: payer, isSigner: true, isWritable: false },
-      { pubkey: request, isSigner: false, isWritable: true },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: optional(opts.payerSource), isSigner: false, isWritable: !!opts.payerSource },
-      { pubkey: optional(opts.vault), isSigner: false, isWritable: !!opts.vault },
-      { pubkey: optional(opts.vaultUsdc), isSigner: false, isWritable: !!opts.vaultUsdc },
-      { pubkey: optional(opts.destUsdc), isSigner: false, isWritable: !!opts.destUsdc },
-    ],
-    data,
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Account decoders
 // ---------------------------------------------------------------------------
@@ -357,30 +209,6 @@ export interface AgentVault {
   lifetimeSpent: bigint;
   paymentCount: number;
 }
-
-export type RequestStatus = 'Pending' | 'Accepted' | 'Denied' | 'Expired';
-
-export interface PaymentRequest {
-  requester: PublicKey;
-  payer: PublicKey;
-  vault: PublicKey | null;
-  mintOut: PublicKey;
-  amountOut: bigint;
-  memoHash: Buffer;
-  status: RequestStatus;
-  createdAt: bigint;
-  expiresAt: bigint;
-  requestId: bigint;
-  bump: number;
-}
-
-export interface RequestCounter {
-  payer: PublicKey;
-  nextId: bigint;
-  bump: number;
-}
-
-const STATUS: RequestStatus[] = ['Pending', 'Accepted', 'Denied', 'Expired'];
 
 export function decodeAgentVault(data: Buffer): AgentVault {
   const r = new BorshReader(data).skipDiscriminator();
@@ -401,38 +229,6 @@ export function decodeAgentVault(data: Buffer): AgentVault {
   };
 }
 
-export function decodePaymentRequest(data: Buffer): PaymentRequest {
-  const r = new BorshReader(data).skipDiscriminator();
-  return {
-    requester: r.pubkey(),
-    payer: r.pubkey(),
-    vault: r.option((rr) => rr.pubkey()),
-    mintOut: r.pubkey(),
-    amountOut: r.u64(),
-    memoHash: r.fixedBytes(32),
-    status: STATUS[r.u8()] ?? 'Pending',
-    createdAt: r.i64(),
-    expiresAt: r.i64(),
-    requestId: r.u64(),
-    bump: r.u8(),
-  };
-}
-
-export function decodeRequestCounter(data: Buffer): RequestCounter {
-  const r = new BorshReader(data).skipDiscriminator();
-  return {
-    payer: r.pubkey(),
-    nextId: r.u64(),
-    bump: r.u8(),
-  };
-}
-
 export function isAgentVault(data: Buffer): boolean {
   return data.length >= 8 && Buffer.from(ACCT.agentVault).equals(data.subarray(0, 8));
-}
-export function isPaymentRequest(data: Buffer): boolean {
-  return data.length >= 8 && Buffer.from(ACCT.paymentRequest).equals(data.subarray(0, 8));
-}
-export function isRequestCounter(data: Buffer): boolean {
-  return data.length >= 8 && Buffer.from(ACCT.requestCounter).equals(data.subarray(0, 8));
 }

@@ -1,10 +1,10 @@
 /**
  * PalmShell — the signed-in app: header with lock toggle, Home / Agents /
- * Requests tabs, a bottom nav, and the action bottom-sheets (add, send,
- * withdraw, request, create vault, vault detail, top up, edit policy).
+ * Links tabs, a bottom nav, and the action bottom-sheets (add, send, send via
+ * link, claim, withdraw, create agent, agent detail, top up, edit policy).
  *
- * All money actions call the real devnet flows in lib/actions; the private
- * balance, vaults, requests, and activity are read via @tanstack/react-query
+ * All money actions call the real mainnet flows in lib/actions; the private
+ * balance, vaults, links, and activity are read via @tanstack/react-query
  * (see hooks/useSolanaData) and invalidated after each action. Sensitive
  * numbers are masked while the balance is "locked".
  */
@@ -13,9 +13,11 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   TextInput,
   View,
@@ -27,22 +29,30 @@ import bs58 from 'bs58';
 import * as Notifications from 'expo-notifications';
 
 import { useWallet } from '../context/WalletContext';
-import { useBalance, useVaults, useRequests, useActivity, useInvalidateData } from '../hooks/useSolanaData';
+import { useBalance, useVaults, useLinks, useActivity, useInvalidateData } from '../hooks/useSolanaData';
 import {
   deposit,
   withdraw,
   privateTransfer,
-  createRequest,
+  reclaimLink,
+  ReclaimReshieldError,
   createVault,
   topUpVault,
   updateVaultPolicy,
   revokeVault,
-  respondToRequest,
   type VaultView,
-  type RequestView,
+  type LinkView,
 } from '../lib/actions';
 import { RecipientNotOnboardedError } from '../lib/payments';
+import {
+  createClaimLink,
+  claimClaimLink,
+  parseClaimLink,
+  isClaimLink,
+  type ParsedClaimLink,
+} from '../lib/claimlink';
 import type { Policy } from '../lib/vault';
+import { APP_NAME } from '../constants/app-config';
 import { formatUsd, fromUsdc, usdcBase, shortKey } from '../lib/format';
 import { addActivity, activityTime, type ActivityItem } from '../lib/activity';
 import { palm } from '../theme';
@@ -76,8 +86,9 @@ const nice = (n: number) => {
 type SheetKind =
   | 'add'
   | 'send'
+  | 'sendlink'
+  | 'claim'
   | 'withdraw'
-  | 'request'
   | 'create'
   | 'vault'
   | 'topup'
@@ -85,11 +96,6 @@ type SheetKind =
   | 'account'
   | null;
 
-const SUGGESTIONS = [
-  { name: 'Nomad', kind: 'Travel booking' },
-  { name: 'Clerk', kind: 'Invoices & bills' },
-  { name: 'Muse', kind: 'Creative tools' },
-];
 
 export function PalmShell() {
   const w = useWallet();
@@ -98,22 +104,22 @@ export function PalmShell() {
   const insets = useSafeAreaInsets();
 
   // navigation / lock
-  const [tab, setTab] = useState<'home' | 'agents' | 'requests'>('home');
+  const [tab, setTab] = useState<'home' | 'agents' | 'links'>('home');
   const [locked, setLocked] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
 
   // data (react-query)
   const balanceQ = useBalance();
   const vaultsQ = useVaults();
-  const requestsQ = useRequests();
+  const linksQ = useLinks();
   const activityQ = useActivity();
   const invalidate = useInvalidateData();
 
   const balance = balanceQ.data ?? null;
   const vaults: VaultView[] = vaultsQ.data ?? [];
-  const requests: RequestView[] = requestsQ.data ?? [];
+  const links: LinkView[] = linksQ.data ?? [];
   const activity: ActivityItem[] = activityQ.data ?? [];
-  const loading = balanceQ.isFetching || vaultsQ.isFetching || requestsQ.isFetching || activityQ.isFetching;
+  const loading = balanceQ.isFetching || vaultsQ.isFetching || linksQ.isFetching || activityQ.isFetching;
 
   // sheet
   const [sheet, setSheet] = useState<SheetKind>(null);
@@ -126,13 +132,14 @@ export function PalmShell() {
   // sheet inputs
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
+  const [memo, setMemo] = useState('');
+  // The incoming claim link being reviewed (opened via a `palm://claim#…` deep link).
+  const [pendingClaim, setPendingClaim] = useState<ParsedClaimLink | null>(null);
   const [vName, setVName] = useState('');
   const [selVaultAgent, setSelVaultAgent] = useState<string | null>(null);
   const [draft, setDraft] = useState({ cap: 0, daily: 0, allow: false, thresh: 0 });
   const [revokeAsk, setRevokeAsk] = useState(false);
 
-  // requests sub-tab
-  const [reqTab, setReqTab] = useState<'pending' | 'accepted' | 'denied'>('pending');
 
   // toast
   const [toast, setToast] = useState<string | null>(null);
@@ -152,15 +159,32 @@ export function PalmShell() {
   // react-query owns fetching; "reload" just busts the caches
   const reloadAll = invalidate;
 
-  // deep-link push taps → Requests tab
+  // deep-link push taps → Links tab
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
-      setTab('requests');
-      setReqTab('pending');
+      setTab('links');
       invalidate();
     });
     return () => sub.remove();
   }, [invalidate]);
+
+  // Incoming claim links (palm://claim#…) → open the claim review sheet. Handles
+  // both a cold start (getInitialURL) and a link tapped while the app is open.
+  useEffect(() => {
+    const handle = (url: string | null) => {
+      if (!url || !isClaimLink(url)) return;
+      try {
+        setPendingClaim(parseClaimLink(url));
+        setSheet('claim');
+        setStep(0);
+      } catch (e) {
+        showToast((e as Error).message);
+      }
+    };
+    Linking.getInitialURL().then(handle).catch(() => {});
+    const sub = Linking.addEventListener('url', (e) => handle(e.url));
+    return () => sub.remove();
+  }, [showToast]);
 
   // ── lock ─────────────────────────────────────────────────────────────────--
   const unlock = () => {
@@ -187,6 +211,7 @@ export function PalmShell() {
     setDone(false);
     setAmount('');
     setRecipient('');
+    setMemo('');
     setRevokeAsk(false);
     if (reset?.agent) setSelVaultAgent(reset.agent);
   };
@@ -254,6 +279,46 @@ export function PalmShell() {
       { busy: ['Sending privately', 'Nothing about this payment is publicly visible.'], done: ['Sent privately', `${shortKey(recipient.trim())} received ${formatUsd(usdcBase(amt))}. No one else can see it happened.`] },
     );
 
+  // Send via link: mint a claim link from the shielded balance, then hand it off
+  // through the OS share sheet. No recipient address needed — see lib/claimlink.
+  const doSendLink = () =>
+    runFlow(
+      async () => {
+        const link = await createClaimLink(w.signer!, amt, memo.trim() || undefined);
+        await addActivity({ kind: 'out', title: 'Sent via link', amount: -amt, pending: true });
+        await Share.share({
+          message: memo.trim()
+            ? `${memo.trim()}\n\nClaim your $${amt} on ${APP_NAME}: ${link.url}`
+            : `Claim your $${amt} on ${APP_NAME}: ${link.url}`,
+        });
+      },
+      {
+        busy: ['Creating your link', 'Funding it from your private balance.'],
+        done: ['Link ready', 'Anyone with the link can claim it — share it only with them. Unclaimed funds stay yours.'],
+      },
+    );
+
+  // Claim an incoming link into the user's own wallet. The link account signs and
+  // pays; we just name this wallet as the destination.
+  const doClaim = () => {
+    const claim = pendingClaim;
+    if (!claim) return;
+    return runFlow(
+      async () => {
+        const { amount: got } = await claimClaimLink(w.signer!.publicKey, claim.keypair);
+        await addActivity({
+          kind: 'in',
+          title: claim.memo ? `Claimed: ${claim.memo}` : 'Claimed a link',
+          amount: fromUsdc(got),
+        });
+      },
+      {
+        busy: ['Claiming', 'Moving the funds into your wallet.'],
+        done: ['Claimed', 'The funds are in your wallet. Add them to your private balance any time.'],
+      },
+    );
+  };
+
   const doWithdraw = () =>
     runFlow(
       async () => {
@@ -263,21 +328,12 @@ export function PalmShell() {
       { busy: ['Starting withdrawal', 'Leaving the private pool takes longer. Safe to close this.'], done: ['Withdrawal started', "We'll notify you when it lands."] },
     );
 
-  const doRequest = () =>
-    runFlow(
-      async () => {
-        const payer = new PublicKey(recipient.trim());
-        await createRequest(w.signer!, payer, amt);
-      },
-      { busy: ['Creating request', "They'll get a private notification."], done: ['Request sent', `${shortKey(recipient.trim())} will see the amount only after they unlock.`] },
-    );
-
   const doTopup = () =>
     runFlow(
       async () => {
         await topUpVault(w.signer!, new PublicKey(selVault!.agent), amt);
       },
-      { busy: ['Moving funds into the vault', 'From your private balance.'], done: ['Topped up', `${selVault?.label ?? 'The vault'} now has more to spend.`] },
+      { busy: ['Moving funds into the agent', 'From your private balance.'], done: ['Topped up', `${selVault?.label ?? 'The agent'} now has more to spend.`] },
     );
 
   const policyFromDraft = (): Policy => ({
@@ -294,7 +350,7 @@ export function PalmShell() {
       async () => {
         const kp = Keypair.generate();
         await createVault(w.signer!, kp.publicKey, policyFromDraft(), vName || 'New agent');
-        // fund the vault (best-effort on devnet)
+        // fund the vault (best-effort)
         try {
           await topUpVault(w.signer!, kp.publicKey, amt);
         } catch {
@@ -307,7 +363,7 @@ export function PalmShell() {
             `Agent secret (save to wire your automation):\n${bs58.encode(kp.secretKey)}`,
         });
       },
-      { busy: ['Creating vault on-chain', `Walling off ${formatUsd(usdcBase(amt))} for ${vName || 'your agent'}. About 10 seconds.`], done: ['', ''] },
+      { busy: ['Creating agent on-chain', `Walling off ${formatUsd(usdcBase(amt))} for ${vName || 'your agent'}. About 10 seconds.`], done: ['', ''] },
     );
 
   const doEdit = () =>
@@ -340,40 +396,41 @@ export function PalmShell() {
     }
   };
 
-  const respond = async (rv: RequestView, accept: boolean) => {
-    if (!rv.account) return;
+  // Re-open the OS share sheet for a link (e.g. dismissed the first time).
+  const reshareLink = async (link: LinkView) => {
     try {
-      await respondToRequest(w.signer!, BigInt(rv.entry.requestId), accept, rv.account);
-      if (accept) {
-        await addActivity({
-          kind: 'out',
-          title: `Paid ${shortKey(rv.account.requester.toBase58())}`,
-          amount: -fromUsdc(rv.account.amountOut),
-        });
-        showToast(`Paid ${formatUsd(rv.account.amountOut)} privately`);
-      } else {
-        showToast('Denied. Your money is safe — nothing moved.');
-      }
-      reloadAll();
+      await Share.share({
+        message: link.entry.memo
+          ? `${link.entry.memo}\n\nClaim your ${formatUsd(link.amount)} on ${APP_NAME}: ${link.entry.url}`
+          : `Claim your ${formatUsd(link.amount)} on ${APP_NAME}: ${link.entry.url}`,
+      });
     } catch (e) {
       showToast((e as Error).message);
     }
   };
 
-  // ── derived: requests grouping ───────────────────────────────────────────---
-  const me = w.publicKey;
-  const reqGroups = useMemo(() => {
-    const withAcct = requests.filter((r) => r.account);
-    const statusOf = (r: RequestView) => r.account!.status;
-    const pending = withAcct.filter((r) => statusOf(r) === 'Pending');
-    const accepted = withAcct.filter((r) => statusOf(r) === 'Accepted');
-    const denied = withAcct.filter((r) => statusOf(r) === 'Denied' || statusOf(r) === 'Expired');
-    return { pending, accepted, denied };
-  }, [requests]);
+  // Pull an unclaimed link's funds back into your private balance (sweep + re-shield).
+  const doReclaim = async (link: LinkView) => {
+    const back = link.amount;
+    try {
+      await reclaimLink(w.signer!, link.entry.url);
+      await addActivity({ kind: 'in', title: 'Reclaimed a link', amount: fromUsdc(back) });
+      showToast(`Reclaimed ${formatUsd(back)} to your private balance`);
+    } catch (e) {
+      if (e instanceof ReclaimReshieldError) {
+        // Funds are recovered to the public ATA; the shield step is all that failed.
+        await addActivity({ kind: 'in', title: 'Reclaimed a link (public)', amount: fromUsdc(e.reclaimed) });
+      }
+      showToast((e as Error).message);
+    } finally {
+      reloadAll();
+    }
+  };
 
-  const pendingActionable = reqGroups.pending.filter(
-    (r) => r.account!.payer.toBase58() === me,
-  ).length;
+  // ── derived: link grouping ─────────────────────────────────────────────────
+  const me = w.publicKey;
+  const openLinks = links.filter((l) => !l.claimed);
+  const openLinksCount = openLinks.length;
 
   // Disconnect the wallet: revokes the MWA session (or wipes the local key) and
   // resets onboarding. The App gate reacts to signer/step becoming null/welcome
@@ -420,7 +477,7 @@ export function PalmShell() {
       >
         {tab === 'home' && <HomeTab />}
         {tab === 'agents' && <AgentsTab />}
-        {tab === 'requests' && <RequestsTab />}
+        {tab === 'links' && <LinksTab />}
       </ScrollView>
 
       {/* bottom nav */}
@@ -428,7 +485,7 @@ export function PalmShell() {
         {([
           { key: 'home', label: 'Home', icon: 'home' as IconName },
           { key: 'agents', label: 'Agents', icon: 'agents' as IconName },
-          { key: 'requests', label: 'Requests', icon: 'requests' as IconName },
+          { key: 'links', label: 'Links', icon: 'link' as IconName },
         ] as const).map((n) => {
           const active = tab === n.key;
           const fg = active ? palm.green : palm.inkFaint;
@@ -438,10 +495,10 @@ export function PalmShell() {
               <T weight="semibold" size={11} color={fg}>
                 {n.label}
               </T>
-              {n.key === 'requests' && pendingActionable > 0 && (
+              {n.key === 'links' && openLinksCount > 0 && (
                 <View style={styles.navBadge}>
                   <T weight="bold" size={10} color={palm.onDark}>
-                    {pendingActionable}
+                    {openLinksCount}
                   </T>
                 </View>
               )}
@@ -469,8 +526,8 @@ export function PalmShell() {
     const actions: { label: string; icon: IconName; onPress: () => void }[] = [
       { label: 'Add', icon: 'add', onPress: () => openSheet('add') },
       { label: 'Send', icon: 'send', onPress: () => openSheet('send') },
+      { label: 'Send link', icon: 'link', onPress: () => openSheet('sendlink') },
       { label: 'Withdraw', icon: 'withdraw', onPress: () => openSheet('withdraw') },
-      { label: 'Request', icon: 'request', onPress: () => openSheet('request') },
     ];
     return (
       <View style={{ gap: 20 }}>
@@ -622,7 +679,7 @@ export function PalmShell() {
             style={styles.newVaultBtn}
           >
             <T weight="semibold" size={13} color={palm.onDark}>
-              + New vault
+              + New agent
             </T>
           </Pressable>
         </View>
@@ -639,7 +696,7 @@ export function PalmShell() {
         {vaults.length === 0 && (
           <View style={styles.emptyCard}>
             <T size={14} color={palm.inkDim} style={{ textAlign: 'center', lineHeight: 21 }}>
-              No agent vaults yet. Create one to give an automation a private, capped allowance.
+              No agents yet. Create one to give an automation a private, capped allowance.
             </T>
           </View>
         )}
@@ -673,7 +730,7 @@ export function PalmShell() {
               {name}
             </T>
             <T size={12.5} color={palm.inkFaint}>
-              {v.account ? 'Agent vault' : 'Pending on-chain'}
+              {v.account ? 'Agent' : 'Pending on-chain'}
             </T>
           </View>
           {v.account ? (
@@ -721,124 +778,81 @@ export function PalmShell() {
     );
   }
 
-  function RequestsTab() {
-    const list = reqGroups[reqTab];
+  function LinksTab() {
     return (
       <View style={{ gap: 14 }}>
-        <T weight="bold" size={22} style={{ letterSpacing: -0.5 }}>
-          Requests
-        </T>
-        <View style={styles.segmented}>
-          {(['pending', 'accepted', 'denied'] as const).map((t) => {
-            const on = reqTab === t;
-            const label = t === 'pending' && pendingActionable ? `Pending · ${pendingActionable}` : t[0].toUpperCase() + t.slice(1);
-            return (
-              <Pressable key={t} onPress={() => setReqTab(t)} style={[styles.segItem, on && styles.segItemOn]}>
-                <T weight="semibold" size={12.5} color={on ? palm.ink : '#7A857E'}>
-                  {label}
-                </T>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {locked && (
-          <Pressable onPress={unlock} style={styles.lockedBanner}>
-            <Icon name="unlock" size={14} color={palm.onDark} strokeWidth={2.2} />
-            <T weight="semibold" size={13} color={palm.onDark}>
-              Details hidden — tap to unlock
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <T weight="bold" size={22} style={{ letterSpacing: -0.5, flex: 1 }}>
+            Payment links
+          </T>
+          <Pressable onPress={() => openSheet('sendlink')} style={styles.newLinkBtn}>
+            <Icon name="link" size={15} color={palm.green} strokeWidth={2.2} />
+            <T weight="semibold" size={13} color={palm.green}>
+              New link
             </T>
           </Pressable>
-        )}
+        </View>
+        <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
+          Send money as a link — no address needed. Open links are still yours until claimed, and you can reclaim them any time.
+        </T>
 
-        {list.length === 0 ? (
-          <View style={{ alignItems: 'center', paddingVertical: 48 }}>
+        {links.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 44 }}>
             <View style={styles.emptyIcon}>
-              <Icon name="mailOpen" size={20} color={palm.inkFaint} strokeWidth={2} />
+              <Icon name="link" size={20} color={palm.inkFaint} strokeWidth={2} />
             </View>
             <T weight="semibold" size={14} color={palm.inkDim} style={{ marginTop: 14 }}>
-              {reqTab === 'pending' ? 'Nothing waiting on you.' : reqTab === 'accepted' ? 'No accepted requests yet.' : 'Nothing denied or expired.'}
+              No links yet.
+            </T>
+            <T size={12.5} color={palm.inkFaint} style={{ marginTop: 4 }}>
+              Tap “New link” to send one.
             </T>
           </View>
         ) : (
-          list.map((r) => <RequestCard key={`${r.entry.payer}:${r.entry.requestId}`} r={r} />)
+          links.map((l) => <LinkCard key={l.entry.linkAddress} l={l} />)
         )}
       </View>
     );
   }
 
-  function RequestCard({ r }: { r: RequestView }) {
-    const a = r.account!;
-    const isAgent = !!a.vault;
-    const iAmPayer = a.payer.toBase58() === me;
-    const iAmRequester = a.requester.toBase58() === me;
-    const pending = a.status === 'Pending';
-    const actionable = pending && iAmPayer;
-    const waiting = pending && iAmRequester && !iAmPayer;
-
-    const tag = isAgent ? 'Agent approval' : iAmPayer ? 'Asks you' : 'Waiting on them';
-    const tagFg = isAgent ? palm.amber : iAmPayer ? palm.green : '#7A7F7C';
-    const tagBg = isAgent ? palm.amberBgStrong : iAmPayer ? '#E1EFE6' : '#EEF1EE';
-    const title = isAgent
-      ? `Agent wants to pay ${shortKey(a.requester.toBase58())}`
-      : iAmPayer
-        ? `${shortKey(a.requester.toBase58())} is asking you to pay`
-        : `You asked ${shortKey(a.payer.toBase58())} to pay`;
-
+  function LinkCard({ l }: { l: LinkView }) {
+    const tagFg = l.claimed ? '#7A7F7C' : palm.green;
+    const tagBg = l.claimed ? '#EEF1EE' : '#E1EFE6';
+    const shownAmount = l.claimed ? BigInt(l.entry.amount) : l.amount;
     return (
-      <View
-        style={[
-          styles.reqCard,
-          {
-            backgroundColor: isAgent && pending ? '#FDFAF2' : palm.card,
-            borderColor: isAgent && pending ? '#EBDDB8' : palm.border,
-          },
-        ]}
-      >
+      <View style={[styles.reqCard, { backgroundColor: palm.card, borderColor: palm.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <View style={[styles.reqTag, { backgroundColor: tagBg }]}>
             <T weight="bold" size={10.5} color={tagFg} style={{ letterSpacing: 0.5 }}>
-              {tag.toUpperCase()}
+              {l.claimed ? 'CLAIMED' : 'OPEN'}
             </T>
           </View>
           <View style={{ flex: 1 }} />
           <T size={11.5} color={palm.inkFaint}>
-            #{a.requestId.toString()}
+            {new Date(l.entry.createdAt).toLocaleDateString()}
           </T>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <T weight="semibold" size={14.5} style={{ lineHeight: 20 }}>
-              {title}
+              {l.entry.memo || 'Payment link'}
             </T>
             <T size={12.5} color={palm.inkDim} style={{ marginTop: 3 }}>
-              expires {new Date(Number(a.expiresAt) * 1000).toLocaleDateString()}
+              {l.claimed ? 'Claimed by recipient' : shortKey(l.entry.linkAddress)}
             </T>
           </View>
           {locked ? (
             <Secret locked w={64} h={22} />
           ) : (
-            <T weight="bold" size={19}>
-              {formatUsd(a.amountOut)}
+            <T weight="bold" size={19} color={l.claimed ? palm.inkFaint : palm.ink}>
+              {formatUsd(shownAmount)}
             </T>
           )}
         </View>
-        {actionable && (
+        {!l.claimed && (
           <View style={{ flexDirection: 'row', gap: 9, marginTop: 13 }}>
-            <OutlineButton title="Deny" onPress={() => respond(r, false)} style={{ flex: 1 }} />
-            <PrimaryButton
-              title={isAgent ? 'Approve payment' : `Pay ${formatUsd(a.amountOut)}`}
-              onPress={() => respond(r, true)}
-              style={{ flex: 1.4, paddingVertical: 11 }}
-            />
-          </View>
-        )}
-        {waiting && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 }}>
-            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#C9D3CC' }} />
-            <T weight="semibold" size={12.5} color={palm.inkFaint}>
-              Waiting for them — nothing needed from you
-            </T>
+            <OutlineButton title="Reclaim" onPress={() => doReclaim(l)} style={{ flex: 1 }} />
+            <PrimaryButton title="Share again" onPress={() => reshareLink(l)} style={{ flex: 1.4, paddingVertical: 11 }} />
           </View>
         )}
       </View>
@@ -852,10 +866,11 @@ export function PalmShell() {
     const titles: Record<string, string> = {
       add: 'Add funds',
       send: 'Send privately',
+      sendlink: 'Send via link',
+      claim: 'Claim a payment',
       withdraw: 'Withdraw',
-      request: 'Request a payment',
-      create: 'New vault',
-      vault: selVault?.label ?? 'Vault',
+      create: 'New agent',
+      vault: selVault?.label ?? 'Agent',
       topup: `Top up ${selVault?.label ?? ''}`.trim(),
       edit: `Edit policy — ${selVault?.label ?? ''}`.trim(),
       account: 'Account',
@@ -865,7 +880,7 @@ export function PalmShell() {
       !busy &&
       !done &&
       ((sheet === 'send' && step > 0) ||
-        (sheet === 'request' && step > 0) ||
+        (sheet === 'sendlink' && step > 0) ||
         (sheet === 'withdraw' && step > 0) ||
         (sheet === 'create' && step > 0) ||
         sheet === 'topup' ||
@@ -930,14 +945,12 @@ export function PalmShell() {
       );
     }
 
-    // recipient step (send / request)
-    if ((sheet === 'send' || sheet === 'request') && step === 0) {
+    // recipient step (send)
+    if (sheet === 'send' && step === 0) {
       return (
         <View style={{ gap: 12 }}>
           <T size={12.5} color={palm.inkFaint}>
-            {sheet === 'request'
-              ? 'Who are you asking to pay you? Paste their private address.'
-              : 'Who receives it? Only the two of you will ever see this payment.'}
+            Who receives it? Only the two of you will ever see this payment.
           </T>
           <TextInput
             value={recipient}
@@ -969,7 +982,7 @@ export function PalmShell() {
       return (
         <View style={{ gap: 14 }}>
           <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
-            Which agent will spend from this vault? It only ever sees its own pocket — never your balance.
+            Name your agent. It only ever sees its own pocket — never your balance.
           </T>
           <TextInput
             value={vName}
@@ -978,31 +991,16 @@ export function PalmShell() {
             placeholderTextColor={palm.inkGhost}
             style={styles.input}
           />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {SUGGESTIONS.map((sg) => {
-              const sel = vName === sg.name;
-              return (
-                <Pressable
-                  key={sg.name}
-                  onPress={() => setVName(sg.name)}
-                  style={[styles.suggChip, { borderColor: sel ? palm.green : palm.border, backgroundColor: sel ? palm.greenTintBg : palm.card }]}
-                >
-                  <T weight="semibold" size={13} color={palm.ink}>
-                    {sg.name} · {sg.kind}
-                  </T>
-                </Pressable>
-              );
-            })}
-          </View>
           <PrimaryButton title="Continue" onPress={() => vName && setStep(1)} style={{ opacity: vName ? 1 : 0.45 }} />
         </View>
       );
     }
 
-    // amount step (add / send.1 / withdraw.0 / request.1 / create.1 / topup.0)
+    // amount step (add / send.1 / sendlink.0 / withdraw.0 / create.1 / topup.0)
     const isAmount =
       (sheet === 'add' && step === 0) ||
-      ((sheet === 'send' || sheet === 'request') && step === 1) ||
+      (sheet === 'send' && step === 1) ||
+      (sheet === 'sendlink' && step === 0) ||
       (sheet === 'withdraw' && step === 0) ||
       (sheet === 'create' && step === 1) ||
       (sheet === 'topup' && step === 0);
@@ -1010,22 +1008,23 @@ export function PalmShell() {
       const captions: Record<string, string> = {
         add: 'Into your shielded balance — visible only to you',
         send: `To ${shortKey(recipient.trim())} · ${formatUsd(balance ?? 0n)} available · arrives in seconds`,
+        sendlink: `${formatUsd(balance ?? 0n)} available · anyone with the link can claim it`,
         withdraw: `${formatUsd(balance ?? 0n)} available · takes longer`,
-        request: `Asking ${shortKey(recipient.trim())} — they see it only after unlocking`,
         create: `This becomes ${vName || 'the agent'}’s entire allowance`,
         topup: `From your private balance · ${formatUsd(balance ?? 0n)} available`,
       };
       const btnLabels: Record<string, string> = {
         add: `Add $${amount || '0'}`,
         send: 'Review',
+        sendlink: 'Review',
         withdraw: 'Review withdrawal',
-        request: 'Send request',
         create: 'Set the rules',
         topup: `Top up $${amount || '0'}`,
       };
       const next = () => {
         if (!amtOk) return;
         if (sheet === 'send') setStep(2);
+        else if (sheet === 'sendlink') setStep(1);
         else if (sheet === 'withdraw') setStep(1);
         else if (sheet === 'create') {
           setDraft({
@@ -1036,7 +1035,6 @@ export function PalmShell() {
           });
           setStep(2);
         } else if (sheet === 'add') doAdd();
-        else if (sheet === 'request') doRequest();
         else if (sheet === 'topup') doTopup();
       };
       return (
@@ -1101,6 +1099,71 @@ export function PalmShell() {
             title={isWithdraw ? `Withdraw ${formatUsd(usdcBase(amt))}` : `Send ${formatUsd(usdcBase(amt))} privately`}
             onPress={isWithdraw ? doWithdraw : doSend}
           />
+        </View>
+      );
+    }
+
+    // send-via-link: optional memo + confirm (sendlink.1)
+    if (sheet === 'sendlink' && step === 1) {
+      return (
+        <View style={{ gap: 14 }}>
+          <View style={styles.confirmBox}>
+            {[
+              { k: 'Amount', v: formatUsd(usdcBase(amt)) },
+              { k: 'To', v: 'Anyone with the link' },
+              { k: 'Visibility', v: 'Private — off-chain memo' },
+            ].map((r, i, arr) => (
+              <View key={r.k} style={[styles.confirmRow, i < arr.length - 1 && styles.activityDivider]}>
+                <T size={13} color={palm.inkFaint}>
+                  {r.k}
+                </T>
+                <T weight="semibold" size={14.5} style={{ textAlign: 'right' }}>
+                  {r.v}
+                </T>
+              </View>
+            ))}
+          </View>
+          <TextInput
+            value={memo}
+            onChangeText={setMemo}
+            placeholder="Add a note (only they can read it)"
+            placeholderTextColor={palm.inkGhost}
+            autoCapitalize="none"
+            style={styles.input}
+          />
+          <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
+            The note and amount travel inside the link, never on-chain. Anyone you send the link to can claim it, so share it privately. If it’s never claimed, the funds stay yours.
+          </T>
+          <PrimaryButton title={`Create link for ${formatUsd(usdcBase(amt))}`} onPress={doSendLink} />
+        </View>
+      );
+    }
+
+    // claim an incoming link (opened via deep link)
+    if (sheet === 'claim') {
+      const claimAmt = pendingClaim?.amount;
+      return (
+        <View style={{ gap: 14 }}>
+          <View style={styles.confirmBox}>
+            {[
+              { k: 'Amount', v: claimAmt != null ? formatUsd(claimAmt) : 'Whatever’s on the link' },
+              ...(pendingClaim?.memo ? [{ k: 'Note', v: pendingClaim.memo }] : []),
+              { k: 'To', v: 'Your wallet' },
+            ].map((r, i, arr) => (
+              <View key={r.k} style={[styles.confirmRow, i < arr.length - 1 && styles.activityDivider]}>
+                <T size={13} color={palm.inkFaint}>
+                  {r.k}
+                </T>
+                <T weight="semibold" size={14.5} style={{ textAlign: 'right', flexShrink: 1 }}>
+                  {r.v}
+                </T>
+              </View>
+            ))}
+          </View>
+          <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
+            Someone sent you a private payment. Claiming moves it into your wallet — you can add it to your private balance afterward.
+          </T>
+          <PrimaryButton title="Claim it" onPress={doClaim} />
         </View>
       );
     }
@@ -1197,7 +1260,7 @@ export function PalmShell() {
           )}
 
           <PrimaryButton
-            title={sheet === 'edit' ? 'Save policy' : `Create vault · fund ${formatUsd(usdcBase(amt))}`}
+            title={sheet === 'edit' ? 'Save policy' : `Create agent · fund ${formatUsd(usdcBase(amt))}`}
             onPress={sheet === 'edit' ? doEdit : doCreate}
           />
         </ScrollView>
@@ -1305,10 +1368,10 @@ export function PalmShell() {
                 Pull back {formatUsd(v.remainingAllowance)} to your balance?
               </T>
               <T size={12.5} color={palm.dangerInk} style={{ marginTop: 5, lineHeight: 19 }}>
-                {name} loses access instantly. This can't be undone — but you can always create a new vault.
+                {name} loses access instantly. This can't be undone — but you can always create a new agent.
               </T>
               <View style={{ flexDirection: 'row', gap: 9, marginTop: 13 }}>
-                <OutlineButton title="Keep vault" onPress={() => setRevokeAsk(false)} style={{ flex: 1, paddingVertical: 11 }} />
+                <OutlineButton title="Keep agent" onPress={() => setRevokeAsk(false)} style={{ flex: 1, paddingVertical: 11 }} />
                 <Pressable onPress={doRevoke} style={styles.revokeNow}>
                   <T weight="bold" size={13} color={palm.onDark}>
                     Revoke now
@@ -1429,17 +1492,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 13,
   },
-  emptyCard: { backgroundColor: palm.card, borderWidth: 1, borderColor: palm.border, borderRadius: 18, padding: 20 },
+  emptyCard: { height: 250, alignItems: 'center', justifyContent: 'center' },
   vaultCard: { backgroundColor: palm.card, borderWidth: 1, borderColor: palm.border, borderRadius: 20, padding: 18 },
   progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#E9EFEA', overflow: 'hidden', flexDirection: 'row' },
 
-  // requests
+  // links + segmented controls
   segmented: { flexDirection: 'row', gap: 6, backgroundColor: '#EBEFEC', borderRadius: 999, padding: 4 },
   segItem: { flex: 1, borderRadius: 999, paddingVertical: 9, alignItems: 'center' },
   segItemOn: { backgroundColor: palm.card },
   emptyIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: '#EBEFEC', alignItems: 'center', justifyContent: 'center' },
   reqCard: { borderWidth: 1, borderRadius: 18, padding: 16 },
   reqTag: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  newLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: palm.green,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
 
   // nav
   nav: {

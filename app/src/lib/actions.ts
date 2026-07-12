@@ -1,14 +1,15 @@
 /**
- * actions.ts — high-level flows the screens call. Each returns real devnet
+ * actions.ts — high-level flows the screens call. Each returns real mainnet
  * results where the contract is settled, and is annotated where a leg is
- * best-effort / stubbed (swap on devnet, vault top-up onto the ER).
+ * best-effort (vault top-up onto the ER). Moves live USDC.
  */
 import { Buffer } from './buffer';
 import { PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { USDC_DEVNET } from './constants';
+import { USDC_MINT } from './constants';
 import type { Signer } from './signer';
 import { getTeeToken } from './session';
+import { getApiToken } from './apiSession';
 import { teeConnection, baseConnection } from './connections';
 import {
   buildDeposit,
@@ -16,39 +17,30 @@ import {
   buildTransfer,
   signAndSend,
 } from './payments';
-import { readTeeBalance, submitTeeTxObject } from './tee';
+import { readTeeBalance } from './tee';
 import { sendBaseTx } from './chain';
-import { usdcBase } from './format';
+import { fromUsdc } from './format';
 import {
   createVaultIx,
   updatePolicyIx,
   reclaimIx,
   vaultPda,
   vaultAta,
-  counterPda,
-  requestPda,
-  createRequestIxWithId,
-  respondRequestIx,
   decodeAgentVault,
-  decodePaymentRequest,
-  decodeRequestCounter,
   type AgentVault,
-  type PaymentRequest,
   type Policy,
 } from './vault';
-import { directQuote } from './swap';
-import { memoHash } from './onboarding';
 import {
   addVaultEntry,
   removeVaultEntry,
   listVaultEntries,
-  addRequestEntry,
-  listRequestEntries,
-  type RequestEntry,
+  listLinkEntries,
+  removeLinkEntry,
+  type LinkEntry,
 } from './registry';
-import { Transaction } from '@solana/web3.js';
+import { claimClaimLink, parseClaimLink } from './claimlink';
 
-const USDC = new PublicKey(USDC_DEVNET);
+const USDC = new PublicKey(USDC_MINT);
 
 // ---------------------------------------------------------------------------
 // Balance (TEE-native private read)
@@ -106,7 +98,13 @@ export async function privateTransfer(
   dollars: number,
   memo?: string,
 ): Promise<string> {
-  const token = await getTeeToken(signer);
+  // Two auth domains: the Payments API verifies the `apiToken` (from apiLogin)
+  // on the build request; the TEE RPC verifies `teeToken` on the ephemeral
+  // submit. They are NOT interchangeable.
+  const [apiToken, teeToken] = await Promise.all([
+    getApiToken(signer),
+    getTeeToken(signer),
+  ]);
   const built = await buildTransfer(
     {
       from: signer.publicKey.toBase58(),
@@ -117,9 +115,9 @@ export async function privateTransfer(
       toBalance: 'ephemeral',
       memo,
     },
-    token,
+    apiToken,
   );
-  return signAndSend(built, signer, token);
+  return signAndSend(built, signer, teeToken);
 }
 
 // ---------------------------------------------------------------------------
@@ -162,7 +160,7 @@ export async function revokeVault(
 }
 
 /**
- * Top up a vault's allowance. BEST-EFFORT on devnet: funds the vault PDA's
+ * Top up a vault's allowance. BEST-EFFORT: funds the vault PDA's
  * private balance via a hosted private transfer to the vault address. The vault
  * ATA must be onboarded/delegated on the ER to receive (spikes S2#7).
  */
@@ -172,7 +170,10 @@ export async function topUpVault(
   dollars: number,
 ): Promise<string> {
   const [vault] = vaultPda(signer.publicKey, agent);
-  const token = await getTeeToken(signer);
+  const [apiToken, teeToken] = await Promise.all([
+    getApiToken(signer),
+    getTeeToken(signer),
+  ]);
   const built = await buildTransfer(
     {
       from: signer.publicKey.toBase58(),
@@ -182,9 +183,9 @@ export async function topUpVault(
       fromBalance: 'ephemeral',
       toBalance: 'ephemeral',
     },
-    token,
+    apiToken,
   );
-  return signAndSend(built, signer, token);
+  return signAndSend(built, signer, teeToken);
 }
 
 export interface VaultView {
@@ -226,131 +227,71 @@ export async function fetchAllVaults(signer: Signer): Promise<VaultView[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Requests (created directly on the ER; deterministic counter derivation S4)
+// Payment links (claim links) — replace the old request-to-pay flow. A link is
+// a throwaway account holding shielded funds until someone opens it; see
+// lib/claimlink for the mechanism. Here we surface status + reclaim.
 // ---------------------------------------------------------------------------
+export interface LinkView {
+  entry: LinkEntry;
+  amount: bigint; // base units currently sitting on the link account
+  claimed: boolean; // true once the funds have been swept off it
+}
 
-/** Read a payer's request counter next_id from the ER (0 if none yet). */
-export async function readNextRequestId(
-  signer: Signer,
-  payer: PublicKey,
-): Promise<bigint> {
-  const token = await getTeeToken(signer);
-  const conn = teeConnection(token);
-  const [counter] = counterPda(payer);
-  const info = await conn.getAccountInfo(counter);
-  if (!info) return 0n;
-  return decodeRequestCounter(Buffer.from(info.data)).nextId;
+/** Every link this device created, with live open/claimed status from chain. */
+export async function fetchAllLinks(): Promise<LinkView[]> {
+  const entries = await listLinkEntries();
+  const conn = baseConnection();
+  const views = await Promise.all(
+    entries.map(async (entry) => {
+      const ata = getAssociatedTokenAddressSync(
+        USDC,
+        new PublicKey(entry.linkAddress),
+        true,
+      );
+      const info = await conn.getAccountInfo(ata);
+      const amount =
+        info && info.data.length >= 72
+          ? Buffer.from(info.data).readBigUInt64LE(64)
+          : 0n;
+      return { entry, amount, claimed: amount === 0n };
+    }),
+  );
+  return views.sort((a, b) => b.entry.createdAt - a.entry.createdAt);
 }
 
 /**
- * Create a user-to-user request-to-pay. The requester (this user) asks `payer`
- * to pay `dollars`. Submitted to the ER. Records the id locally for discovery.
+ * Reclaim an unclaimed link and return the funds to your PRIVATE balance. Two
+ * legs: sweep the link account back to your public ATA (same mechanism as a
+ * recipient claim, you as destination — possible because you kept the secret),
+ * then re-shield that amount with a deposit so you end up exactly where you
+ * started. If the re-shield leg fails, the money is still safely recovered on
+ * your public ATA — surfaced via `reclaimed` on the error.
  */
-export async function createRequest(
-  signer: Signer,
-  payer: PublicKey,
-  dollars: number,
-  memo = '',
-  ttlSeconds = 60 * 60 * 24,
-): Promise<{ signature: string; requestId: bigint }> {
-  const token = await getTeeToken(signer);
-  const nextId = await readNextRequestId(signer, payer);
-  const expiresAt = BigInt(Math.floor(Date.now() / 1000) + ttlSeconds);
-  const ix = createRequestIxWithId(
-    signer.publicKey,
-    payer,
-    nextId,
-    USDC,
-    usdcBase(dollars),
-    expiresAt,
-    memoHash(memo),
-  );
-  const tx = new Transaction().add(ix);
-  const signature = await submitTeeTxObject(tx, signer, token);
-  await addRequestEntry({
-    payer: payer.toBase58(),
-    requestId: nextId.toString(),
-    direction: 'from_me',
-    createdAt: Date.now(),
-  });
-  return { signature, requestId: nextId };
-}
-
-/**
- * Respond to a user-to-user request as the payer. On accept, funds move from
- * the payer's own token account to the requester (payer signs as authority).
- */
-export async function respondToRequest(
-  signer: Signer,
-  requestId: bigint,
-  accept: boolean,
-  req: PaymentRequest,
-): Promise<string> {
-  const token = await getTeeToken(signer);
-  const payerSource = accept
-    ? getAssociatedTokenAddressSync(USDC, signer.publicKey, true)
-    : null;
-  const destUsdc = accept
-    ? getAssociatedTokenAddressSync(new PublicKey(req.mintOut), req.requester, true)
-    : null;
-  const ix = respondRequestIx(
-    signer.publicKey,
-    requestId,
-    accept,
-    directQuote(req.amountOut),
-    { payerSource, destUsdc },
-  );
-  const tx = new Transaction().add(ix);
-  return submitTeeTxObject(tx, signer, token);
-}
-
-export interface RequestView {
-  entry: RequestEntry;
-  account: PaymentRequest | null;
-}
-
-/** Fetch a single request account from the ER by (payer, id). */
-export async function fetchRequest(
-  signer: Signer,
-  payer: PublicKey,
-  requestId: bigint,
-): Promise<PaymentRequest | null> {
-  const token = await getTeeToken(signer);
-  const conn = teeConnection(token);
-  const [request] = requestPda(payer, requestId);
-  const info = await conn.getAccountInfo(request);
-  return info ? decodePaymentRequest(Buffer.from(info.data)) : null;
-}
-
-/** Load all locally-known requests + any addressed to me (derived by counter). */
-export async function fetchAllRequests(signer: Signer): Promise<RequestView[]> {
-  const entries = await listRequestEntries();
-  // Also derive requests where I am the payer (addressed to me): scan my counter.
-  const myNext = await readNextRequestId(signer, signer.publicKey);
-  const derived: RequestEntry[] = [];
-  for (let i = 0n; i < myNext; i++) {
-    if (
-      !entries.some(
-        (e) => e.payer === signer.publicKey.toBase58() && e.requestId === i.toString(),
-      )
-    ) {
-      derived.push({
-        payer: signer.publicKey.toBase58(),
-        requestId: i.toString(),
-        direction: 'to_me',
-        createdAt: Date.now(),
-      });
-    }
+export async function reclaimLink(signer: Signer, url: string): Promise<string> {
+  const { keypair, linkAddress } = parseClaimLink(url);
+  const { amount } = await claimClaimLink(signer.publicKey, keypair);
+  await removeLinkEntry(linkAddress);
+  try {
+    return await deposit(signer, fromUsdc(amount));
+  } catch (e) {
+    throw new ReclaimReshieldError(amount, e);
   }
-  const all = [...entries, ...derived];
-  return Promise.all(
-    all.map(async (entry) => ({
-      entry,
-      account: await fetchRequest(
-        signer,
-        new PublicKey(entry.payer),
-        BigInt(entry.requestId),
-      ),
-    })),
-  );
+}
+
+/**
+ * The link was swept back to the caller's PUBLIC ATA, but the re-shield deposit
+ * failed. The funds are safe (just not private yet); the caller can retry a
+ * plain deposit of `reclaimed`.
+ */
+export class ReclaimReshieldError extends Error {
+  constructor(
+    public reclaimed: bigint,
+    public cause: unknown,
+  ) {
+    super(
+      'Reclaimed to your public balance, but moving it back into private failed. ' +
+        'Your funds are safe — add them privately to finish.',
+    );
+    this.name = 'ReclaimReshieldError';
+  }
 }

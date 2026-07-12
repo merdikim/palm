@@ -2,7 +2,7 @@
  * chain.ts — submit locally-built base-layer transactions via the Signer.
  *
  * Used for the vault program's owner-signed instructions (create_vault,
- * reclaim, update_policy) which live on the Solana devnet base layer. ER-native
+ * reclaim, update_policy) which live on the Solana mainnet base layer. ER-native
  * instructions go through `tee.submitTeeTxObject` instead.
  */
 import { Transaction, type TransactionInstruction } from '@solana/web3.js';
@@ -37,7 +37,8 @@ export async function sendBaseTx(
   return sig;
 }
 
-/** Request an airdrop of devnet SOL (rent/fees for the local keypair). */
+/** Request a SOL airdrop (rent/fees). NOTE: airdrops are not available on
+ *  mainnet — this helper is test/devnet-only and is currently unused. */
 export async function requestAirdrop(
   signer: Signer,
   lamports = 1_000_000_000,
