@@ -1,12 +1,17 @@
 /**
- * Onboarding — Palm flow: Welcome → Connect a wallet → Create your private
+ * Onboarding — Palm flow: Welcome → Connect a wallet → Unlock your private
  * account (sign) → Add first funds. Wired to the real WalletContext:
- *   connect  → createWallet()  (local ed25519 key in secure store)
- *   protect  → authenticate()  (TEE auth challenge + registry)
- *   fund     → deposit()       (delegates + shields a first deposit)
+ *   connect  → connectWallet()  (Mobile Wallet Adapter authorize + cache)
+ *   unlock   → authenticate()   (wallet signature → TEE auth + registry)
+ *   fund     → deposit()        (delegates + shields a first deposit)
  *
- * Resumable: the initial step is derived from persisted wallet state, so a
- * killed/backgrounded app resumes where it left off.
+ * "Unlock your private account" is a bottom sheet that slides up over the
+ * welcome screen once a wallet is connected — a single signature to get in,
+ * not account creation.
+ *
+ * Resumable: the sheet always starts closed, so a returning (or sheet-dismissed)
+ * user lands back on the welcome screen. Tapping "Connect wallet" re-opens the
+ * sheet when a wallet is already connected; an authed user skips to the fund step.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Dimensions, Easing, ScrollView, StyleSheet, Pressable, View } from 'react-native';
@@ -17,23 +22,16 @@ import { useWallet } from '../context/WalletContext';
 import { deposit } from '../lib/actions';
 import { addActivity } from '../lib/activity';
 import { ensureRegistered } from '../lib/relay';
-import { T, PrimaryButton, GhostButton, Logo, MarkAvatar } from '../components/palm';
+import { T, PrimaryButton, GhostButton, Logo, Sheet, SheetStatus } from '../components/palm';
 import { Icon, type IconName } from '../components/icons';
 import { palm } from '../theme';
 
-const WALLETS = [
-  { name: 'Nova Wallet', sub: 'Detected on this device' },
-  { name: 'KeyRing', sub: 'Mobile wallet' },
-  { name: 'Hardware device', sub: 'Connect over USB or NFC' },
-];
 const FUND_OPTS = [100, 500, 1000];
 const fmt0 = (n: number) => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-// Welcome-screen geometry + iris-close transition scale.
+// Welcome-screen geometry.
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const GLOW_CY = SCREEN_H * 0.42;
-const IRIS_BASE = 220;
-const IRIS_FINAL = (Math.hypot(SCREEN_W, SCREEN_H) * 1.2) / IRIS_BASE;
 
 /** The things Palm keeps private — each with its own icon, rolled in the hero. */
 const ITEMS: { word: string; icon: IconName }[] = [
@@ -102,59 +100,46 @@ function RollingItem({ items, interval = 1700 }: { items: typeof ITEMS; interval
 export function OnboardingScreen() {
   const w = useWallet();
 
-  const initialStep = (() => {
-    if (!w.signer) return 0;
-    if (!w.authed) return 2;
-    return 3;
-  })();
-
-  const [step, setStep] = useState(initialStep);
+  // An authed returning user lands on funding; everyone else starts at welcome.
+  const [step, setStep] = useState(w.authed ? 3 : 0);
+  // Protect sheet — starts closed. It's opened by the "Connect wallet" CTA, so a
+  // returning (or sheet-dismissed) user always lands back on the welcome screen.
+  const [unlockOpen, setUnlockOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [connecting, setConnecting] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const [fundPick, setFundPick] = useState(500);
-
-  // welcome → connect: a green "logo circle" irises closed over the screen,
-  // step 1 is swapped in underneath, then the circle irises back open.
-  const [closing, setClosing] = useState(false);
-  const iris = useRef(new Animated.Value(0)).current; // 0 → 1 (cover) → 2 (reveal)
-  const goNext = () => {
-    if (closing) return;
-    setClosing(true);
-    iris.setValue(0);
-    Animated.timing(iris, { toValue: 1, duration: 500, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
-      ({ finished }) => {
-        if (!finished) return;
-        setStep(1);
-        Animated.timing(iris, { toValue: 2, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(
-          () => {
-            setClosing(false);
-            iris.setValue(0);
-          },
-        );
-      },
-    );
-  };
 
   const err = (e: unknown) => Alert.alert('Something went wrong', (e as Error).message);
 
-  const connect = async (name: string) => {
+  // Welcome CTA. First tap connects an installed wallet via Mobile Wallet Adapter
+  // — the OS presents the chooser of wallets on the device — then slides up the
+  // protect sheet to sign. If a wallet is already connected (returning user, or
+  // they dismissed the sheet), the tap just re-opens the sheet — no reconnect.
+  const startConnect = async () => {
     if (connecting) return;
-    setConnecting(name);
+    if (w.signer) {
+      setUnlockOpen(true);
+      return;
+    }
+    setConnecting(true);
     try {
-      await w.createWallet();
-      setStep(2);
+      await w.connectWallet();
+      setUnlockOpen(true);
     } catch (e) {
-      err(e);
+      // A user-dismissed wallet sheet throws; don't alarm them for a cancel.
+      if (!/cancel|declin|dismiss/i.test((e as Error).message)) err(e);
     } finally {
-      setConnecting(null);
+      setConnecting(false);
     }
   };
 
-  const protectAccount = async () => {
+  // Sign inside the protect sheet, then reveal the fund step.
+  const signToUnlock = async () => {
     setBusy(true);
     try {
       await w.authenticate();
       if (w.publicKey) await ensureRegistered(w.publicKey).catch(() => {});
+      setUnlockOpen(false);
       setStep(3);
     } catch (e) {
       err(e);
@@ -182,7 +167,7 @@ export function OnboardingScreen() {
 
   const seg = (on: boolean) => (on ? palm.green : '#DCE2DE');
 
-  // ── step 0 · welcome (white field, subtle green rings, wheel picker) ──
+  // ── step 0 · welcome (white field, subtle green rings) ──
   const welcome = (
     <View style={styles.welcomeRoot}>
       <WelcomeBackdrop />
@@ -204,9 +189,9 @@ export function OnboardingScreen() {
           <RollingItem items={ITEMS} />
         </View>
 
-        {/* cta */}
+        {/* cta — connects a wallet (or re-opens the sheet if already connected) */}
         <View style={styles.wBottom}>
-          <PrimaryButton title="Get started" onPress={goNext} />
+          <PrimaryButton title="Connect wallet" loading={connecting} onPress={startConnect} />
         </View>
       </SafeAreaView>
     </View>
@@ -219,149 +204,95 @@ export function OnboardingScreen() {
       ) : (
         <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* progress */}
-        {step > 0 && (
-          <View style={{ gap: 8, marginBottom: 8 }}>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <View style={[styles.segBar, { backgroundColor: seg(step >= 1) }]} />
-              <View style={[styles.segBar, { backgroundColor: seg(step >= 2) }]} />
-              <View style={[styles.segBar, { backgroundColor: seg(step >= 3) }]} />
+            {/* progress */}
+            <View style={{ gap: 8, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <View style={[styles.segBar, { backgroundColor: seg(step >= 1) }]} />
+                <View style={[styles.segBar, { backgroundColor: seg(step >= 2) }]} />
+                <View style={[styles.segBar, { backgroundColor: seg(step >= 3) }]} />
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                {['Connect', 'Unlock', 'Fund'].map((l) => (
+                  <T key={l} weight="semibold" size={11} color={palm.inkFaint} style={styles.segLabel}>
+                    {l.toUpperCase()}
+                  </T>
+                ))}
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {['Connect', 'Protect', 'Fund'].map((l) => (
-                <T key={l} weight="semibold" size={11} color={palm.inkFaint} style={styles.segLabel}>
-                  {l.toUpperCase()}
-                </T>
-              ))}
-            </View>
-          </View>
-        )}
 
-        {/* step 1 · connect */}
-        {step === 1 && (
-          <View style={{ flex: 1, paddingTop: 24 }}>
-            <T weight="bold" size={24} style={{ letterSpacing: -0.5, marginBottom: 8 }}>
-              Connect a wallet
-            </T>
-            <T size={14} color={palm.inkDim} style={{ lineHeight: 21, marginBottom: 24 }}>
-              Your wallet stays yours. Palm only asks it to sign — never to hand over keys.
-            </T>
-            <View style={{ gap: 10 }}>
-              {WALLETS.map((wal) => (
-                <Pressable key={wal.name} onPress={() => connect(wal.name)} style={styles.walletRow}>
-                  <MarkAvatar name={wal.name} size={38} />
-                  <View style={{ flex: 1 }}>
-                    <T weight="semibold" size={15}>
-                      {wal.name}
-                    </T>
-                    <T size={12.5} color={palm.inkFaint}>
-                      {wal.sub}
-                    </T>
-                  </View>
-                  {connecting === wal.name && <ActivityIndicator color={palm.green} />}
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* step 2 · protect */}
-        {step === 2 && (
-          <View style={{ flex: 1, paddingTop: 24 }}>
-            <T weight="bold" size={24} style={{ letterSpacing: -0.5, marginBottom: 8 }}>
-              Create your private account
-            </T>
-            <T size={14} color={palm.inkDim} style={{ lineHeight: 21, marginBottom: 28 }}>
-              One signature proves this shielded space is yours. Nothing here will appear on public explorers.
-            </T>
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              {busy ? (
-                <View style={{ alignItems: 'center', gap: 18 }}>
-                  <View style={styles.protectBusy}>
-                    <ActivityIndicator color={palm.green} size="large" />
-                  </View>
-                  <View style={{ alignItems: 'center' }}>
-                    <T weight="semibold" size={15}>
-                      Confirming on-chain
-                    </T>
-                    <T size={12.5} color={palm.inkFaint} style={{ marginTop: 4, textAlign: 'center' }}>
-                      About 10 seconds. Safe to leave — we'll pick up where you left off.
-                    </T>
-                  </View>
+            {/* step 3 · fund */}
+            <View style={{ flex: 1, paddingTop: 24 }}>
+              <T weight="bold" size={24} style={{ letterSpacing: -0.5, marginBottom: 8 }}>
+                Add your first funds
+              </T>
+              <T size={14} color={palm.inkDim} style={{ lineHeight: 21, marginBottom: 26 }}>
+                Money moves into your shielded balance. From here on, only you can see it.
+              </T>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                {FUND_OPTS.map((v) => {
+                  const sel = fundPick === v;
+                  return (
+                    <Pressable
+                      key={v}
+                      onPress={() => setFundPick(v)}
+                      style={[
+                        styles.fundOpt,
+                        {
+                          borderColor: sel ? palm.green : palm.border,
+                          backgroundColor: sel ? palm.greenTintBg : palm.card,
+                        },
+                      ]}
+                    >
+                      <T weight="bold" size={16} color={sel ? palm.green : palm.inkSoft}>
+                        {fmt0(v)}
+                      </T>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {busy && (
+                <View style={styles.fundBusy}>
+                  <ActivityIndicator color={palm.green} />
+                  <T size={13.5} color={palm.inkDim}>
+                    Moving {fmt0(fundPick)} into your private balance…
+                  </T>
                 </View>
-              ) : (
-                <View style={styles.protectShield}>
-                  <Icon name="shieldCheck" size={52} color="#DFF0E8" strokeWidth={1.8} />
+              )}
+              <View style={{ flex: 1 }} />
+              {!busy && (
+                <View style={{ gap: 10 }}>
+                  <PrimaryButton title={`Add ${fmt0(fundPick)} & finish`} onPress={fund} />
+                  <GhostButton title="Skip for now" onPress={skip} />
                 </View>
               )}
             </View>
-            {!busy && <PrimaryButton title="Sign & protect my account" onPress={protectAccount} />}
-          </View>
-        )}
-
-        {/* step 3 · fund */}
-        {step === 3 && (
-          <View style={{ flex: 1, paddingTop: 24 }}>
-            <T weight="bold" size={24} style={{ letterSpacing: -0.5, marginBottom: 8 }}>
-              Add your first funds
-            </T>
-            <T size={14} color={palm.inkDim} style={{ lineHeight: 21, marginBottom: 26 }}>
-              Money moves into your shielded balance. From here on, only you can see it.
-            </T>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-              {FUND_OPTS.map((v) => {
-                const sel = fundPick === v;
-                return (
-                  <Pressable
-                    key={v}
-                    onPress={() => setFundPick(v)}
-                    style={[
-                      styles.fundOpt,
-                      {
-                        borderColor: sel ? palm.green : palm.border,
-                        backgroundColor: sel ? palm.greenTintBg : palm.card,
-                      },
-                    ]}
-                  >
-                    <T weight="bold" size={16} color={sel ? palm.green : palm.inkSoft}>
-                      {fmt0(v)}
-                    </T>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {busy && (
-              <View style={styles.fundBusy}>
-                <ActivityIndicator color={palm.green} />
-                <T size={13.5} color={palm.inkDim}>
-                  Moving {fmt0(fundPick)} into your private balance…
-                </T>
-              </View>
-            )}
-            <View style={{ flex: 1 }} />
-            {!busy && (
-              <View style={{ gap: 10 }}>
-                <PrimaryButton title={`Add ${fmt0(fundPick)} & finish`} onPress={fund} />
-                <GhostButton title="Skip for now" onPress={skip} />
-              </View>
-            )}
-          </View>
-        )}
-        </ScrollView>
+          </ScrollView>
         </SafeAreaView>
       )}
 
-      {/* iris-close: a green "logo circle" wipes between welcome and step 1 */}
-      {closing && (
-        <View pointerEvents="none" style={styles.irisWrap}>
-          <Animated.View
-            style={[
-              styles.iris,
-              { transform: [{ scale: iris.interpolate({ inputRange: [0, 1, 2], outputRange: [0.001, IRIS_FINAL, 0.001] }) }] },
-            ]}
+      {/* unlock · sign to access the private account (slides up after connect) */}
+      <Sheet
+        visible={unlockOpen}
+        title="Unlock your private account"
+        onClose={() => {
+          if (!busy) setUnlockOpen(false);
+        }}
+      >
+        {busy ? (
+          <SheetStatus
+            kind="busy"
+            title="Verifying your signature"
+            caption="Your wallet signature is being verified."
           />
-        </View>
-      )}
+        ) : (
+          <View style={{ gap: 22, paddingTop: 4, paddingBottom: 6 }}>
+            <T size={14} color={palm.inkDim} style={{ lineHeight: 21, paddingBottom: 28 }}>
+              A single wallet signature proves this shielded space is yours, that's all it takes to get in. This is just a signature. No funds involved.
+            </T>
+            <PrimaryButton title="Sign to unlock" onPress={signToUnlock} />
+          </View>
+        )}
+      </Sheet>
     </View>
   );
 }
@@ -393,36 +324,11 @@ const styles = StyleSheet.create({
   },
   bigWord: { letterSpacing: -0.8 },
 
-  // ── iris-close transition (green logo circle) ──
-  irisWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', marginTop: -(SCREEN_H * 0.08) },
-  iris: {
-    width: IRIS_BASE,
-    height: IRIS_BASE,
-    borderRadius: IRIS_BASE / 2,
-    backgroundColor: palm.greenDeep,
-  },
-  walletRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: palm.card,
-    borderWidth: 1,
-    borderColor: palm.border,
-    borderRadius: 16,
-    padding: 16,
-  },
-  protectBusy: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    backgroundColor: palm.greenTintBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  // ── protect sheet shield ──
   protectShield: {
-    width: 130,
-    height: 130,
-    borderRadius: 36,
+    width: 96,
+    height: 96,
+    borderRadius: 28,
     backgroundColor: palm.greenDeep,
     alignItems: 'center',
     justifyContent: 'center',

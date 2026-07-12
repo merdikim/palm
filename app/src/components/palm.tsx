@@ -3,10 +3,11 @@
  * agent "mark" avatar, and the bottom-sheet shell. Everything renders in the
  * Palm light palette with Instrument Sans.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   Easing,
   Modal,
   Pressable,
@@ -16,6 +17,7 @@ import {
   type TextProps,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palm, font } from '../theme';
 import { Icon } from './icons';
 
@@ -244,27 +246,51 @@ export function Sheet({
   onBack?: () => void;
   children: React.ReactNode;
 }) {
-  const y = useRef(new Animated.Value(60)).current;
+  // Pad the sheet clear of the system nav bar / gesture area at the bottom.
+  const insets = useSafeAreaInsets();
+  // Keep the Modal mounted through the exit animation so the sheet can slide
+  // back down (rather than vanishing) when `visible` flips to false.
+  const [mounted, setMounted] = useState(visible);
+  // Off-screen travel distance — the sheet's own measured height, falling back
+  // to the window height until the first layout pass.
+  const sheetH = useRef(Dimensions.get('window').height);
+  const y = useRef(new Animated.Value(sheetH.current)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      y.setValue(60);
-      opacity.setValue(0);
+      setMounted(true);
+      y.setValue(sheetH.current);
       Animated.parallel([
-        Animated.timing(y, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.spring(y, { toValue: 0, useNativeDriver: true, damping: 26, stiffness: 260, mass: 0.9 }),
+        Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
       ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(y, { toValue: sheetH.current, duration: 240, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
     }
   }, [visible, y, opacity]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.sheetRoot}>
         <Animated.View style={[styles.backdrop, { opacity }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: y }] }]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            { paddingBottom: 30 + insets.bottom, transform: [{ translateY: y }] },
+          ]}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0) sheetH.current = h;
+          }}
+        >
           <View style={styles.grabber} />
           <View style={styles.sheetHead}>
             {canBack ? (

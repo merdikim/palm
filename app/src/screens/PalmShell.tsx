@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Pressable,
@@ -82,6 +83,7 @@ type SheetKind =
   | 'vault'
   | 'topup'
   | 'edit'
+  | 'account'
   | null;
 
 const SUGGESTIONS = [
@@ -371,6 +373,27 @@ export function PalmShell() {
     (r) => r.account!.payer.toBase58() === me,
   ).length;
 
+  // Disconnect the wallet: revokes the MWA session (or wipes the local key) and
+  // resets onboarding. The App gate reacts to signer/step becoming null/welcome
+  // and swaps back to the OnboardingScreen — no manual navigation needed.
+  const disconnect = () => {
+    Alert.alert(
+      'Disconnect wallet',
+      'Palm will forget this wallet on your device and return to the start. Your funds stay in the wallet.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: () => {
+            closeSheet();
+            w.signOut().catch((e) => showToast((e as Error).message));
+          },
+        },
+      ],
+    );
+  };
+
   // ── render ───────────────────────────────────────────────────────────────---
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -382,21 +405,26 @@ export function PalmShell() {
             Palm
           </T>
         </View>
-        <Pressable
-          onPress={toggleLock}
-          style={[
-            styles.lockChip,
-            {
-              backgroundColor: locked ? palm.greenDeep : palm.greenTintBg,
-              borderColor: locked ? palm.greenDeep : palm.greenTintBorder,
-            },
-          ]}
-        >
-          <Icon name={locked ? 'lock' : 'unlock'} size={12} color={locked ? palm.onDark : palm.green} strokeWidth={2.2} />
-          <T weight="semibold" size={12.5} color={locked ? palm.onDark : palm.green}>
-            {unlocking ? 'Unlocking…' : locked ? 'Locked' : 'Unlocked'}
-          </T>
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Pressable
+            onPress={toggleLock}
+            style={[
+              styles.lockChip,
+              {
+                backgroundColor: locked ? palm.greenDeep : palm.greenTintBg,
+                borderColor: locked ? palm.greenDeep : palm.greenTintBorder,
+              },
+            ]}
+          >
+            <Icon name={locked ? 'lock' : 'unlock'} size={12} color={locked ? palm.onDark : palm.green} strokeWidth={2.2} />
+            <T weight="semibold" size={12.5} color={locked ? palm.onDark : palm.green}>
+              {unlocking ? 'Unlocking…' : locked ? 'Locked' : 'Unlocked'}
+            </T>
+          </Pressable>
+          <Pressable onPress={() => openSheet('account')} hitSlop={8} accessibilityLabel="Account">
+            <MarkAvatar name={me ?? 'Palm'} size={32} />
+          </Pressable>
+        </View>
       </View>
 
       {/* content */}
@@ -848,6 +876,7 @@ export function PalmShell() {
       vault: selVault?.label ?? 'Vault',
       topup: `Top up ${selVault?.label ?? ''}`.trim(),
       edit: `Edit policy — ${selVault?.label ?? ''}`.trim(),
+      account: 'Account',
     };
 
     const canBack =
@@ -886,6 +915,39 @@ export function PalmShell() {
   }
 
   function renderSheetBody() {
+    // account: connected wallet + disconnect
+    if (sheet === 'account') {
+      return (
+        <View style={{ gap: 16 }}>
+          <View style={styles.accountRow}>
+            <MarkAvatar name={me ?? 'Palm'} size={44} />
+            <View style={{ flex: 1 }}>
+              <T weight="semibold" size={14}>
+                Connected wallet
+              </T>
+              <T size={12.5} color={palm.inkFaint}>
+                {me ? shortKey(me, 6) : '—'}
+              </T>
+            </View>
+            <Chip label="External" />
+          </View>
+          <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 18 }}>
+            Disconnecting removes this wallet from Palm and takes you back to the
+            start. Your funds remain safe in the wallet itself.
+          </T>
+          <Pressable
+            onPress={disconnect}
+            style={({ pressed }) => [styles.disconnectBtn, { opacity: pressed ? 0.85 : 1 }]}
+          >
+            <Icon name="unlock" size={15} color={palm.danger} strokeWidth={2.2} />
+            <T weight="semibold" size={14} color={palm.danger}>
+              Disconnect wallet
+            </T>
+          </Pressable>
+        </View>
+      );
+    }
+
     // recipient step (send / request)
     if ((sheet === 'send' || sheet === 'request') && step === 0) {
       return (
@@ -1301,6 +1363,29 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   content: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 24 },
+
+  // account sheet
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: palm.card,
+    borderWidth: 1,
+    borderColor: palm.border,
+    borderRadius: 16,
+    padding: 14,
+  },
+  disconnectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: palm.dangerBg,
+    borderWidth: 1,
+    borderColor: palm.dangerBorder,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
 
   // balance
   balanceCard: {

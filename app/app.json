@@ -11,19 +11,15 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "io.usepalm.app"
-    },
+    "platforms": [
+      "android"
+    ],
     "android": {
       "package": "io.usepalm.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D3B2E"
       }
-    },
-    "web": {
-      "bundler": "metro"
     },
     "plugins": [
       "expo-secure-store",

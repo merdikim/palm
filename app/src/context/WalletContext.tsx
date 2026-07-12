@@ -1,8 +1,3 @@
-/**
- * WalletContext — owns the active Signer and TEE session lifecycle, and exposes
- * the private balance. Screens consume this instead of touching the signer or
- * session cache directly.
- */
 import React, {
   createContext,
   useCallback,
@@ -11,7 +6,10 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { LocalKeypairSigner, type Signer } from '../lib/signer';
+import { MobileWalletProvider, useMobileWallet } from '@wallet-ui/react-native-web3js';
+import type { AppIdentity, Chain } from '@solana-mobile/mobile-wallet-adapter-protocol';
+import { SOLANA_DEVNET_RPC } from '../lib/constants';
+import type { Signer } from '../lib/signer';
 import { getTeeToken, clearSession, peekSession } from '../lib/session';
 import {
   getOnboardingStep,
@@ -21,14 +19,12 @@ import {
 } from '../lib/onboarding';
 
 interface WalletState {
-  ready: boolean; // initial load complete
+  ready: boolean;
   signer: Signer | null;
   publicKey: string | null;
   step: OnboardingStep;
   authed: boolean;
-  // actions
-  createWallet: () => Promise<void>;
-  importWallet: (secretBase58: string) => Promise<void>;
+  connectWallet: () => Promise<void>;
   authenticate: () => Promise<void>;
   advanceStep: (step: OnboardingStep) => Promise<void>;
   signOut: () => Promise<void>;
@@ -36,41 +32,81 @@ interface WalletState {
 
 const Ctx = createContext<WalletState | null>(null);
 
+const MWA_CHAIN: Chain = 'solana:devnet';
+const MWA_IDENTITY: AppIdentity = {
+  name: 'Palm',
+  uri: 'https://usepalm.io',
+  icon: 'favicon.ico',
+};
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <MobileWalletProvider chain={MWA_CHAIN} endpoint={SOLANA_DEVNET_RPC} identity={MWA_IDENTITY}>
+      <WalletBridge>{children}</WalletBridge>
+    </MobileWalletProvider>
+  );
+}
+
+function WalletBridge({ children }: { children: React.ReactNode }) {
+  const mw = useMobileWallet();
+  const account = mw.account;
+  const { store, connect: mwConnect, disconnect: mwDisconnect } = mw;
+
   const [ready, setReady] = useState(false);
-  const [signer, setSigner] = useState<Signer | null>(null);
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [authed, setAuthed] = useState(false);
 
+  const signer = useMemo<Signer | null>(() => {
+    if (!account) return null;
+    return {
+      publicKey: account.publicKey,
+      async signMessage(message: Uint8Array): Promise<Uint8Array> {
+        const signed = await mw.signMessages(message);
+        return signed.length > 64 ? signed.slice(signed.length - 64) : signed;
+      },
+      async signTransaction(tx) {
+        return mw.signTransaction(tx);
+      },
+    };
+  }, [account, mw.signMessages, mw.signTransaction]);
+
+  const publicKey = account?.publicKey.toBase58() ?? null;
+
   useEffect(() => {
+    let alive = true;
     (async () => {
-      const existing = await LocalKeypairSigner.load();
-      if (existing) setSigner(existing);
+      await store.fetch().catch(() => {});
       const s = await getOnboardingStep();
+      if (!alive) return;
       setStep(s);
-      const sess = await peekSession();
-      setAuthed(!!sess && sess.pubkey === existing?.publicKey.toBase58());
       setReady(true);
     })();
-  }, []);
+    return () => {
+      alive = false;
+    };
+  }, [store]);
 
-  const createWallet = useCallback(async () => {
-    const s = await LocalKeypairSigner.create();
-    setSigner(s);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const sess = await peekSession();
+      if (!alive) return;
+      setAuthed(!!sess && !!publicKey && sess.pubkey === publicKey);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [publicKey]);
+
+  const connectWallet = useCallback(async () => {
+    await mwConnect();
     await setOnboardingStep('key_ready');
     setStep('key_ready');
-  }, []);
-
-  const importWallet = useCallback(async (secretBase58: string) => {
-    const s = await LocalKeypairSigner.importFromBase58(secretBase58);
-    setSigner(s);
-    await setOnboardingStep('key_ready');
-    setStep('key_ready');
-  }, []);
+  }, [mwConnect]);
 
   const authenticate = useCallback(async () => {
     if (!signer) throw new Error('No wallet');
-    await getTeeToken(signer); // triggers TEE /auth + caches JWT
+    await getTeeToken(signer);
     setAuthed(true);
     await setOnboardingStep('authed');
     setStep('authed');
@@ -84,21 +120,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     await clearSession();
     await resetOnboarding();
-    await LocalKeypairSigner.wipe();
-    setSigner(null);
+    await mwDisconnect().catch(() => {});
     setAuthed(false);
     setStep('welcome');
-  }, []);
+  }, [mwDisconnect]);
 
   const value = useMemo<WalletState>(
     () => ({
       ready,
       signer,
-      publicKey: signer?.publicKey.toBase58() ?? null,
+      publicKey,
       step,
       authed,
-      createWallet,
-      importWallet,
+      connectWallet,
       authenticate,
       advanceStep,
       signOut,
@@ -106,10 +140,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [
       ready,
       signer,
+      publicKey,
       step,
       authed,
-      createWallet,
-      importWallet,
+      connectWallet,
       authenticate,
       advanceStep,
       signOut,
