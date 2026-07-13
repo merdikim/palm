@@ -98,23 +98,21 @@ export interface ApiSession {
 
 export async function apiLogin(signer: Signer): Promise<ApiSession> {
   const pubkey = signer.publicKey.toBase58();
-  const /*{ challenge }*/ res = await api<{ challenge: string }>('/v1/spl/challenge', {
+  const { challenge } = await api<{ challenge: string }>('/v1/spl/challenge', {
     method: 'GET',
     query: { pubkey, cluster: PAYMENTS_CLUSTER },
   });
-  console.log('res 1', res);
-  const sig = await signer.signMessage(new TextEncoder().encode(res.challenge));
-  const /*{ token }*/ res2 = await api<{ token: string }>('/v1/spl/login', {
+  const sig = await signer.signMessage(new TextEncoder().encode(challenge));
+  const { token } = await api<{ token: string }>('/v1/spl/login', {
     method: 'POST',
     body: JSON.stringify({
       pubkey,
-      challenge: res.challenge,
+      challenge: challenge,
       signature: bs58.encode(sig),
       cluster: PAYMENTS_CLUSTER,
     }),
   });
-  console.log('token - ', res2);
-  return { pubkey, token: res2.token, issuedAt: Date.now() };
+  return { pubkey, token: token, issuedAt: Date.now() };
 }
 
 // ---------------------------------------------------------------------------
@@ -260,8 +258,8 @@ export async function signAndSend(
     if (built.version === 'v0') {
       const tx = VersionedTransaction.deserialize(raw);
       // v0 blockhash lives in the message; the API-supplied one is used as-is.
-      await signer.signTransaction(tx);
-      const sig = await conn.sendRawTransaction(tx.serialize(), {
+      const signed = await signer.signTransaction(tx);
+      const sig = await conn.sendRawTransaction(signed.serialize(), {
         skipPreflight: true,
       });
       await confirmOrThrow(conn, sig, built);
@@ -269,8 +267,8 @@ export async function signAndSend(
     }
     const tx = Transaction.from(raw);
     tx.recentBlockhash = blockhash;
-    await signer.signTransaction(tx);
-    const sig = await conn.sendRawTransaction(tx.serialize(), {
+    const signed = await signer.signTransaction(tx);
+    const sig = await conn.sendRawTransaction(signed.serialize(), {
       skipPreflight: true,
     });
     const conf = await conn.confirmTransaction(
@@ -285,16 +283,16 @@ export async function signAndSend(
   const conn = baseConnection();
   if (built.version === 'v0') {
     const tx = VersionedTransaction.deserialize(raw);
-    await signer.signTransaction(tx);
-    const sig = await conn.sendRawTransaction(tx.serialize(), {
+    const signed = await signer.signTransaction(tx);
+    const sig = await conn.sendRawTransaction(signed.serialize(), {
       skipPreflight: true,
     });
     await confirmOrThrow(conn, sig, built);
     return sig;
   }
   const tx = Transaction.from(raw);
-  await signer.signTransaction(tx);
-  const sig = await conn.sendRawTransaction(tx.serialize(), {
+  const signed = await signer.signTransaction(tx);
+  const sig = await conn.sendRawTransaction(signed.serialize(), {
     skipPreflight: true,
   });
   const conf = await conn.confirmTransaction(

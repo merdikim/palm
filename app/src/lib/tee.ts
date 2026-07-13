@@ -16,8 +16,12 @@ import { Buffer } from './buffer';
 import { PublicKey, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import bs58 from 'bs58';
-import { TEE_ER_ENDPOINT } from './constants';
-import { teeConnection } from './connections';
+import {
+  TEE_ER_ENDPOINT,
+  ESPL_TOKEN_PROGRAM_ID,
+  DELEGATION_PROGRAM_ID,
+} from './constants';
+import { teeConnection, baseConnection } from './connections';
 import type { Signer } from './signer';
 
 export interface TeeSession {
@@ -70,6 +74,40 @@ export function ataOf(owner: PublicKey, mint: PublicKey): PublicKey {
 }
 
 /**
+ * The Ephemeral SPL "eATA" PDA for owner+mint — seeds `[owner, mint]` under the
+ * Ephemeral SPL Token program.
+ *
+ * This is the account the deposit DELEGATES, and it is the only reliable
+ * on-base signal that a wallet has been onboarded. The owner's canonical ATA is
+ * NOT delegated: a deposit moves the tokens into a per-mint global vault and
+ * records the balance in the eATA, leaving the canonical ATA an ordinary
+ * SPL-Token-owned account. Once delegated, the eATA's base-layer owner is the
+ * delegation program.
+ */
+export function eataOf(owner: PublicKey, mint: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [owner.toBuffer(), mint.toBuffer()],
+    new PublicKey(ESPL_TOKEN_PROGRAM_ID),
+  )[0];
+}
+
+/**
+ * Has `owner` onboarded this mint onto the ER? True iff the eATA exists on base
+ * and has been reassigned to the delegation program.
+ *
+ * Needed because the ER CLONES base state for accounts it has never seen
+ * (spikes S2#9): reading the canonical ATA on the ER for a non-delegated wallet
+ * returns its PUBLIC balance, which we must not present as a private one.
+ */
+export async function isDelegated(
+  owner: PublicKey,
+  mint: PublicKey,
+): Promise<boolean> {
+  const info = await baseConnection().getAccountInfo(eataOf(owner, mint));
+  return !!info && info.owner.equals(new PublicKey(DELEGATION_PROGRAM_ID));
+}
+
+/**
  * Read the private token balance for owner+mint directly from the TEE ER.
  *
  * The deposit (Ephemeral SPL "Model A") materializes the ER balance at the
@@ -110,8 +148,8 @@ export async function submitTeeTx(
   const { blockhash, lastValidBlockHeight } =
     await conn.getLatestBlockhash('confirmed');
   tx.recentBlockhash = blockhash;
-  await signer.signTransaction(tx);
-  const sig = await conn.sendRawTransaction(tx.serialize(), {
+  const signed = await signer.signTransaction(tx);
+  const sig = await conn.sendRawTransaction(signed.serialize(), {
     skipPreflight: true,
   });
   const conf = await conn.confirmTransaction(
@@ -141,8 +179,8 @@ export async function submitTeeTxObject(
     await conn.getLatestBlockhash('confirmed');
   tx.recentBlockhash = blockhash;
   tx.feePayer = signer.publicKey;
-  await signer.signTransaction(tx);
-  const sig = await conn.sendRawTransaction(tx.serialize(), {
+  const signed = await signer.signTransaction(tx);
+  const sig = await conn.sendRawTransaction(signed.serialize(), {
     skipPreflight: true,
   });
   const conf = await conn.confirmTransaction(

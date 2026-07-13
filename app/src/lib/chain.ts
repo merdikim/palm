@@ -21,8 +21,8 @@ export async function sendBaseTx(
   tx.add(...ixs);
   tx.recentBlockhash = blockhash;
   tx.feePayer = signer.publicKey;
-  await signer.signTransaction(tx);
-  const sig = await conn.sendRawTransaction(tx.serialize(), {
+  const signed = await signer.signTransaction(tx);
+  const sig = await conn.sendRawTransaction(signed.serialize(), {
     skipPreflight: true,
   });
   const conf = await conn.confirmTransaction(

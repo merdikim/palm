@@ -2,7 +2,7 @@
  * Onboarding — Palm flow: Welcome → Connect a wallet → Unlock your private
  * account (sign) → Add first funds. Wired to the real WalletContext:
  *   connect  → connectWallet()  (Mobile Wallet Adapter authorize + cache)
- *   unlock   → authenticate()   (wallet signature → TEE auth + registry)
+ *   unlock   → authenticate()   (one wallet signature → TEE auth)
  *   fund     → deposit()        (delegates + shields a first deposit)
  *
  * "Unlock your private account" is a bottom sheet that slides up over the

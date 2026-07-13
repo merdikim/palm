@@ -33,7 +33,7 @@ export const TEE_VALIDATOR_IDENTITY =
 // Hosted Private Payments API
 // ---------------------------------------------------------------------------
 export const PAYMENTS_API = 'https://payments.magicblock.app';
-export const PAYMENTS_CLUSTER = 'mainnet';
+export const PAYMENTS_CLUSTER = 'mainnet-private';
 
 // ---------------------------------------------------------------------------
 // Mints (mainnet)

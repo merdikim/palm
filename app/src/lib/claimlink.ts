@@ -21,6 +21,7 @@
  */
 import {
   Keypair,
+  LAMPORTS_PER_SOL,
   PublicKey,
   SystemProgram,
   Transaction,
@@ -55,6 +56,8 @@ const LINK_HOST = 'claim';
 // is fully self-custodial (the recipient signs nothing on-chain to claim). ~1 SPL
 // ATA rent (~0.00204 SOL) + a little slack for fees.
 const LINK_LAMPORTS = 3_000_000; // 0.003 SOL
+// Covers the sender's own signature on the seed tx, plus slack.
+const FEE_BUFFER_LAMPORTS = 15_000;
 
 export interface ClaimLink {
   /** The full `palm://claim#...` URL to share with the recipient. */
@@ -77,6 +80,11 @@ function toBaseUnits(dollars: number): bigint {
   return BigInt(Math.round(dollars * 10 ** USDC_DECIMALS));
 }
 
+/** Lamports as a short SOL string, e.g. 3_005_000 -> "0.003". */
+function fmtSol(lamports: number): string {
+  return (lamports / LAMPORTS_PER_SOL).toFixed(4).replace(/\.?0+$/, '');
+}
+
 /**
  * Create a shareable private-payment link for `dollars`, funded from the
  * sender's SHIELDED balance. Returns the URL to hand off (e.g. via the OS share
@@ -89,6 +97,23 @@ export async function createClaimLink(
   memo?: string,
 ): Promise<ClaimLink> {
   const amount = toBaseUnits(dollars);
+
+  // A link is funded with SOL, not just USDC: the throwaway account must carry
+  // enough to pay the recipient's ATA rent and its own claim fee. Check FIRST —
+  // the seed transfer below is the very first thing that touches the wallet, so
+  // without this the user signs, waits, and gets an opaque System-program
+  // `Custom(1)` ("insufficient lamports") back from the chain.
+  const sol = await baseConnection().getBalance(signer.publicKey);
+  const needed = LINK_LAMPORTS + FEE_BUFFER_LAMPORTS;
+  if (sol < needed) {
+    throw new Error(
+      `Not enough SOL to create a link. This wallet has ${fmtSol(sol)} SOL but ` +
+        `needs about ${fmtSol(needed)} — a link carries its own SOL so the ` +
+        `recipient can claim without a funded wallet. Add some SOL and retry. ` +
+        `(Your USDC balance is not the problem.)`,
+    );
+  }
+
   const link = Keypair.generate();
 
   // 1. Seed the link account with enough SOL to pay its own claim fee + the

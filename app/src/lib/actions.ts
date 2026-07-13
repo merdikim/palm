@@ -5,7 +5,7 @@
  */
 import { Buffer } from './buffer';
 import { PublicKey } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { USDC_MINT } from './constants';
 import type { Signer } from './signer';
 import { getTeeToken } from './session';
@@ -17,7 +17,7 @@ import {
   buildTransfer,
   signAndSend,
 } from './payments';
-import { readTeeBalance } from './tee';
+import { readTeeBalance, isDelegated } from './tee';
 import { sendBaseTx } from './chain';
 import { fromUsdc } from './format';
 import {
@@ -46,15 +46,17 @@ const USDC = new PublicKey(USDC_MINT);
 // Balance (TEE-native private read)
 // ---------------------------------------------------------------------------
 export async function getPrivateBalance(signer: Signer): Promise<bigint> {
-  // The TEE ER clones the PUBLIC base balance for any ATA that hasn't been
-  // delegated yet (spikes S2#9) — so a wallet that skipped its first deposit
-  // would otherwise read its public USDC here. Delegation reassigns the ATA away
-  // from the SPL Token program, so a plain (or missing) token account means the
-  // funds are still public and the private balance is zero. Only a delegated ATA
-  // has a real shielded balance to read from the TEE.
-  const ata = getAssociatedTokenAddressSync(USDC, signer.publicKey, true);
-  const base = await baseConnection().getAccountInfo(ata);
-  if (!base || base.owner.equals(TOKEN_PROGRAM_ID)) return 0n;
+  // The TEE ER clones the PUBLIC base balance for any account it hasn't seen
+  // (spikes S2#9), so we must confirm the wallet is actually delegated before
+  // trusting an ER read — otherwise a wallet that skipped its first deposit
+  // would show its public USDC as a private balance.
+  //
+  // The delegated account is the Ephemeral SPL eATA, NOT the canonical ATA: a
+  // deposit moves the tokens into a per-mint global vault and records the
+  // balance in the eATA, leaving the canonical ATA an ordinary SPL-Token-owned
+  // account forever. Checking the ATA's owner therefore never sees delegation.
+  if (!(await isDelegated(signer.publicKey, USDC))) return 0n;
+  // Delegated: the ER materializes the balance at the CANONICAL ATA (Model A).
   const token = await getTeeToken(signer);
   return readTeeBalance(signer.publicKey, USDC, token);
 }

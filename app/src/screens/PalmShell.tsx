@@ -526,8 +526,8 @@ export function PalmShell() {
     const actions: { label: string; icon: IconName; onPress: () => void }[] = [
       { label: 'Add', icon: 'add', onPress: () => openSheet('add') },
       { label: 'Send', icon: 'send', onPress: () => openSheet('send') },
-      { label: 'Send link', icon: 'link', onPress: () => openSheet('sendlink') },
       { label: 'Withdraw', icon: 'withdraw', onPress: () => openSheet('withdraw') },
+      { label: 'Send link', icon: 'link', onPress: () => openSheet('sendlink') }
     ];
     return (
       <View style={{ gap: 20 }}>
@@ -1111,7 +1111,7 @@ export function PalmShell() {
             {[
               { k: 'Amount', v: formatUsd(usdcBase(amt)) },
               { k: 'To', v: 'Anyone with the link' },
-              { k: 'Visibility', v: 'Private — off-chain memo' },
+              { k: 'Visibility', v: 'Private' },
             ].map((r, i, arr) => (
               <View key={r.k} style={[styles.confirmRow, i < arr.length - 1 && styles.activityDivider]}>
                 <T size={13} color={palm.inkFaint}>
@@ -1132,7 +1132,7 @@ export function PalmShell() {
             style={styles.input}
           />
           <T size={12.5} color={palm.inkFaint} style={{ lineHeight: 19 }}>
-            The note and amount travel inside the link, never on-chain. Anyone you send the link to can claim it, so share it privately. If it’s never claimed, the funds stay yours.
+            Anyone you send the link to can claim it, so share it privately. If it’s never claimed, the funds stay yours.
           </T>
           <PrimaryButton title={`Create link for ${formatUsd(usdcBase(amt))}`} onPress={doSendLink} />
         </View>
